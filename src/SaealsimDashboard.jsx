@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 // ==========================================
 // Gemini API Key 설정 및 호출 함수 (정식 모델 규격 최적화)
 // ==========================================
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+// 💡 .env 파일에 키가 없으면, 사용자에게 직접 브라우저 입력창으로 키를 받도록 업그레이드!
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || window.prompt("Gemini API Key를 입력해 주세요:") || "";
 
 const callGeminiWithBackoff = async (prompt, systemInstruction = "") => {
   // 💡 정식 출시된 gemini-2.5-flash 모델 엔드포인트 고정
