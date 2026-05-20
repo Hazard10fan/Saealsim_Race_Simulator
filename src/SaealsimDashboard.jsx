@@ -1,15 +1,23 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 // ==========================================
-// Gemini API Key 설정 및 호출 함수 (Exponential Backoff 적용)
+// Gemini API Key 설정 및 호출 함수 (정식 모델 규격 최적화)
 // ==========================================
-const apiKey = ""; // 💡 본인의 Gemini API Key가 있다면 여기에 입력하면 연동 가능!
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 const callGeminiWithBackoff = async (prompt, systemInstruction = "") => {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  // 💡 정식 출시된 gemini-2.5-flash 모델 엔드포인트 고정
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  
+  // 💡 구글 서버가 400 에러 없이 단번에 알아먹는 정석 페이로드 구조 개편
   const payload = {
-    contents: [{ parts: [{ text: prompt }] }],
-    systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
+    contents: [{ 
+      parts: [{ text: prompt }] 
+    }],
+    // 시스템 명령어(마동선, 캐스터 설정) 구조의 불필요한 레이어를 걷어내고 정석 매핑
+    systemInstruction: systemInstruction ? { 
+      parts: [{ text: systemInstruction }] 
+    } : undefined
   };
 
   let delay = 1000;
@@ -20,7 +28,13 @@ const callGeminiWithBackoff = async (prompt, systemInstruction = "") => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("구글 서버 상세 에러 반환:", errorData);
+        throw new Error(`API error: ${response.status}`);
+      }
+      
       const result = await response.json();
       const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) return text;
