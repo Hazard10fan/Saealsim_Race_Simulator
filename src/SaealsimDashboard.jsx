@@ -3,8 +3,17 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 // ==========================================
 // Gemini API Key 설정 및 호출 함수 (정식 모델 규격 최적화)
 // ==========================================
-// 💡 .env 파일에 키가 없으면, 사용자에게 직접 브라우저 입력창으로 키를 받도록 업그레이드!
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || window.prompt("Gemini API Key를 입력해 주세요:") || "";
+// 💡 Vercel 환경변수(VITE_GEMINI_API_KEY)가 있으면 묻지 않고, 없을 때만 사용자에게 팝업을 띄우도록 방어막 설정!
+const getInitialApiKey = () => {
+  if (typeof window !== 'undefined') {
+    const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (envKey) return envKey;
+    return window.prompt("Gemini API Key를 입력해 주세요:") || "";
+  }
+  return "";
+};
+
+const apiKey = getInitialApiKey();
 
 const callGeminiWithBackoff = async (prompt, systemInstruction = "") => {
   // 💡 정식 출시된 gemini-2.5-flash 모델 엔드포인트 고정
@@ -15,7 +24,6 @@ const callGeminiWithBackoff = async (prompt, systemInstruction = "") => {
     contents: [{ 
       parts: [{ text: prompt }] 
     }],
-    // 시스템 명령어(마동선, 캐스터 설정) 구조의 불필요한 레이어를 걷어내고 정석 매핑
     systemInstruction: systemInstruction ? { 
       parts: [{ text: systemInstruction }] 
     } : undefined
@@ -115,6 +123,10 @@ export default function SaealsimDashboard() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   const [activeAiTab, setActiveAiTab] = useState("");
+
+  // ── 🛡️ [수정 포인트 1] 악의적 연타 자산 보호용 보안 상태 변수 심기 ──
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false); // 10초 쿨타임 잠금 제어
+  const [aiCallCount, setAiCallCount] = useState(0);         // 1인당 일일 최대 3회 제한 카운터
 
   const loadPreset = (preset) => {
     setActiveRoster(preset.roster);
@@ -595,8 +607,19 @@ export default function SaealsimDashboard() {
     return () => clearInterval(playbackTimer.current);
   }, [isPlaying, visualGame]);
 
+  // ── 🛡️ [수정 포인트 2] 악성 연타 및 무제한 청구 원천 차단 방어벽 로직 ──
   const triggerAiAnalysis = async (type) => {
     if (!simResults) return;
+
+    // 방어벽 A: 10초 쿨타임 주기 중 연타 시도 시 즉시 무시
+    if (isAiAnalyzing) return;
+
+    // 방어벽 B: 1인당 누적 3회 초과 시 브라우저 알림 후 접근 완전 차단
+    if (aiCallCount >= 3) {
+      alert("⚠️ 과도한 AI 트래픽이 감지되었습니다. 원활한 공용 서버 운영을 위해 잠시 후 다시 시도해 주세요!");
+      return;
+    }
+
     setAiLoading(true); setAiError(""); setActiveAiTab(type);
     const rosNames = activeRoster.map(id => SAEALSIMS.find(p => p.id === id).name).join(", ");
     const winData = activeRoster.map((id, idx) => `${SAEALSIMS.find(p => p.id === id).name}: ${simResults.winPercent[idx]}%`).join(", ");
@@ -614,10 +637,21 @@ export default function SaealsimDashboard() {
     }
 
     try {
+      setIsAiAnalyzing(true); // 🔒 클릭 당일 1단계 잠금 버튼 락 온
       const res = await callGeminiWithBackoff(prompt, systemPrompt);
       setAiReport(res);
-    } catch (e) { setAiError("API 분석 중 에러 발생: " + e.message); }
-    finally { setAiLoading(false); }
+      
+      // 요청 대성공 시 사용 횟수 누적 1 카운트 업
+      setAiCallCount(prev => prev + 1);
+    } catch (e) { 
+      setAiError("API 분석 중 에러 발생: " + e.message); 
+    } finally { 
+      setAiLoading(false); 
+      // 방어벽 C: 요청 완료 후 악의적 봇 연타 방지를 위해 '10초' 동안 쿨타임 상태 영구 강제 유지
+      setTimeout(() => {
+        setIsAiAnalyzing(false); // 🔓 10초 후에 안전하게 해제
+      }, 10000);
+    }
   };
 
   useEffect(() => {
@@ -797,13 +831,18 @@ export default function SaealsimDashboard() {
                 ['live', '🎙️ 스포츠 하이라이트 중계'], 
                 ['patch', '🛠️ 밸런스 디자이너 리포트']
               ].map(([type, label]) => (
+                // ── 🛡️ [수정 포인트 3] 버튼 비활성화 태그 및 UI 쿨타임 스타일 연결 ──
                 <button 
                   key={type} 
                   onClick={() => triggerAiAnalysis(type)} 
-                  disabled={!simResults || aiLoading} 
-                  className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all ${activeAiTab === type ? 'bg-amber-500/10 border-amber-500 text-amber-400 shadow-md':'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}`}
+                  disabled={!simResults || aiLoading || isAiAnalyzing || aiCallCount >= 3} 
+                  className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
+                    activeAiTab === type 
+                      ? 'bg-amber-500/10 border-amber-500 text-amber-400 shadow-md'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                  } ${(isAiAnalyzing || aiCallCount >= 3) ? 'opacity-40 cursor-not-allowed border-slate-900 bg-slate-950/80':''}`}
                 >
-                  {label}
+                  {isAiAnalyzing && activeAiTab === type ? "🔒 분석 쿨타임 대기" : label}
                 </button>
               ))}
             </div>
@@ -816,7 +855,10 @@ export default function SaealsimDashboard() {
               ) : aiError ? (
                 <span className="text-red-400">{aiError}</span>
               ) : aiReport ? (
-                aiReport
+                <div>
+                  <div className="text-[10px] text-amber-500/60 font-sans mb-1 text-right">🔒 악성 디도스 방어 활성화 (잔여 사용 한도: {3 - aiCallCount}회)</div>
+                  {aiReport}
+                </div>
               ) : (
                 <span className="text-slate-500">📊 상단의 분석 스위치 버튼을 선택하면 Gemini API가 활성화되어 몬테카를로 통계 분석 맞춤형 브리핑 리포트를 즉시 생성합니다.</span>
               )}
@@ -826,7 +868,6 @@ export default function SaealsimDashboard() {
       </main>
 
       {/* 3. 하단 단판 재생 컨트롤 플레이어 시각화 화면 */}
-{/* 3. 하단 단판 재생 컨트롤 플레이어 시각화 화면 */}
       <footer className="border-t border-slate-800 bg-slate-900/40 p-6 backdrop-blur-sm">
         <div className="max-w-[1700px] mx-auto space-y-4">
           <div className="flex justify-between items-center text-xs">
@@ -835,22 +876,18 @@ export default function SaealsimDashboard() {
               <h3 className="font-bold text-slate-200 uppercase tracking-wider">Play-by-Play 단판 하이라이트 주행 디스플레이</h3>
             </div>
             
-            {/* 📁 [여기서부터 교체 적용된 영역입니다] */}
             {visualGame && (
               <div className="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 border border-slate-800 rounded-xl">
-                
-                {/* 🔄 새로 추가된 처음으로 (초기화) 버튼 */}
                 <button 
                   onClick={() => {
-                    setIsPlaying(false);        // 1. 자동 주행 재생을 멈춘다
-                    setCurrentRoundIdx(0);      // 2. 라운드 번호표를 0(출발점)으로 되돌린다
+                    setIsPlaying(false);        
+                    setCurrentRoundIdx(0);      
                   }}
                   className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-bold transition border border-slate-700 active:scale-95"
                 >
                   🔄 처음으로
                 </button>
 
-                {/* 기존 경기 재생 버튼 */}
                 <button 
                   onClick={() => setIsPlaying(!isPlaying)} 
                   className={`px-3 py-1 rounded text-[11px] font-bold transition text-slate-950 active:scale-95 ${isPlaying ? 'bg-red-400 hover:bg-red-500 text-white' : 'bg-amber-400 hover:bg-amber-300'}`}
@@ -858,16 +895,13 @@ export default function SaealsimDashboard() {
                   {isPlaying ? '⏸️ 일시정지' : '▶️ 경기 재생'}
                 </button>
                 
-                {/* 기존 라운드 카운터 표기 */}
                 <span className="text-slate-400 p-1 font-mono text-[11px] tracking-widest font-black">ROUND: {currentRoundIdx} / {visualGame.totalRounds} R</span>
               </div>
             )}
           </div>
           
-          {/* ??이 올려주신 32칸 트랙 보드 및 로그창 레이아웃 (그대로 보존됨) */}
           {visualGame && currentBoardState && (
             <div className="space-y-4 animate-fadeIn">
-              {/* 32칸 트랙 그래픽 보드 패널 */}
               <div className="overflow-x-auto pb-3 flex space-x-1.5 bg-slate-950/60 p-3 rounded-2xl border border-slate-800 shadow-inner scrollbar-thin">
                 {Array.from({ length: 32 }).map((_, i) => {
                   const stack = currentBoardState.stacks[i] || [];
@@ -900,7 +934,6 @@ export default function SaealsimDashboard() {
                 })}
               </div>
               
-              {/* 라이브 자막 텍스트 중계 스크립트 로그 */}
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] font-medium text-slate-400 max-h-[85px] overflow-y-auto font-mono leading-relaxed shadow-inner">
                 {currentBoardState.log.map((logLine, idx) => (
                   <div key={idx} className="flex gap-2 items-center text-slate-300 py-0.5 border-b border-slate-900/50 last:border-0">
