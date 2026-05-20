@@ -1,0 +1,34 @@
+{
+  "name": "saealsim_race_simulator",
+  "version": "1.0.0",
+  "description": "100,000회 Monte Carlo Simulation 기반의 보드게임 데이터 분석 웹 애플리케이션",
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hazard10fan/Saealsim_Race_Simulator.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Hazard10fan/Saealsim_Race_Simulator/issues"
+  },
+  "homepage": "https://github.com/Hazard10fan/Saealsim_Race_Simulator#readme",
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.0",
+    "vite": "^8.0.13"
+  }
+}
