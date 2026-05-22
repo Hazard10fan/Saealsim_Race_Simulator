@@ -116,7 +116,6 @@ export default function SaealsimDashboard() {
   const [isPlaying, setIsPlaying] = useState(false);
   const playbackTimer = useRef(null);
 
-  // ── 🔮 [장우님 기획] 실시간 1등 추적용 카메라 스크롤 DOM 참조 랜드마크 ──
   const trackContainerRef = useRef(null);
 
   const [aiReport, setAiReport] = useState("");
@@ -654,34 +653,29 @@ export default function SaealsimDashboard() {
     return visualGame.rounds[currentRoundIdx];
   }, [visualGame, currentRoundIdx]);
 
-  // ── 🔮 [수정 포인트 2] 시시각각 변하는 실시간 1등 추적 및 부드러운 자동 스크롤 연동부 ──
   useEffect(() => {
     if (!currentBoardState || !trackContainerRef.current) return;
 
-    // 현재 라운드에서 가장 멀리 나간(인덱스가 가장 큰) 1등 칸 찾기
     let leaderCellIdx = 0;
     for (let c = 31; c >= 0; c--) {
       const stack = currentBoardState.stacks[c] || [];
-      // 아브대왕 제외 진짜 새알심이 존재하는 가장 높은 칸 인덱스를 선점
       if (stack.filter(x => x !== 'ABE').length > 0) {
         leaderCellIdx = c;
         break;
       }
     }
 
-    // 찾아낸 1등 타일 DOM 엘리먼트 타겟팅 추출
     const container = trackContainerRef.current;
     const targetTile = container.children[leaderCellIdx];
     
     if (targetTile) {
-      // 1등 칸이 가로 가이드라인 중심 혹은 시야에 오도록 스무스 스크롤 작동
       const containerWidth = container.clientWidth;
       const tileOffsetLeft = targetTile.offsetLeft;
       const tileWidth = targetTile.clientWidth;
 
       container.scrollTo({
         left: tileOffsetLeft - (containerWidth / 2) + (tileWidth / 2),
-        behavior: 'smooth' // 1등을 따라 카메라가 영화처럼 부드럽게 흐르도록 연출
+        behavior: 'smooth'
       });
     }
   }, [currentRoundIdx, currentBoardState]);
@@ -762,12 +756,13 @@ export default function SaealsimDashboard() {
         </div>
       </header>
 
-      {/* 대시보드 그리드 본체 */}
-      <main className="flex-1 max-w-[1700px] w-full mx-auto p-6 lg:p-8 grid grid-cols-1 xl:grid-cols-12 gap-8">
+      {/* ── 🔮 3단 샌드위치 하이테크 레이아웃 구조 전면 전개 ── */}
+      <main className="flex-1 max-w-[1700px] w-full mx-auto p-6 lg:p-8 space-y-6">
         
-        {/* [좌측 컨트롤 보드 패널] */}
-        <section className="xl:col-span-5 flex flex-col space-y-6">
-          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+        {/* [1단: 세팅 패널 & Recharts 막대 그래프 나란히 배치] */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          {/* 제어 매개변수 설정 */}
+          <section className="xl:col-span-5 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <span>⚙️</span> 제어 매개변수 커스텀 설정
@@ -823,41 +818,10 @@ export default function SaealsimDashboard() {
                 {isSimulating ? `연산 매칭 중 (${progress}%)` : '🔄 시뮬레이션 엔진 가동'}
               </button>
             </div>
-          </div>
+          </section>
 
-          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 flex-1 flex flex-col shadow-xl relative">
-            <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500" />
-            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex justify-between items-center">
-              <span>🥚 출전 새알심 커스텀 풀 로스터 스펙</span>
-              <span className="text-cyan-400 font-mono text-xs font-bold bg-cyan-950/40 border border-cyan-800/30 px-2 py-0.5 rounded-full">{activeRoster.length} / 6 선택됨</span>
-            </h2>
-            
-            <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[460px] pr-1 p-2 bg-slate-950/30 rounded-xl">
-              {SAEALSIMS.map(s => {
-                const isSelected = activeRoster.includes(s.id);
-                return (
-                  <button 
-                    key={s.id} 
-                    onClick={() => toggleSaealsim(s.id)} 
-                    className={`p-2.5 rounded-xl border text-left transition-all ${isSelected ? 'border-amber-500 bg-amber-500/10 shadow-md':'border-slate-800/60 bg-slate-950/40 hover:border-slate-700'}`}
-                  >
-                    <div className="flex justify-between items-center font-bold text-xs">
-                      <span style={{ color: s.color }}>● {s.name}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${s.tier==='S'?'bg-red-500/10 text-red-400':s.tier==='A'?'bg-orange-500/10 text-orange-400':'bg-slate-800 text-slate-400'}`}>{s.tier}티어</span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 leading-tight mt-1 line-clamp-2 h-7">{s.desc}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* [우측 통계 분석 및 디스플레이 패널] */}
-        <section className="xl:col-span-7 flex flex-col space-y-6">
-          
-          {/* 위치 3: 몬테카를로 통계 판독 차트 */}
-          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
+          {/* 몬테카를로 통계 차트 */}
+          <section className="xl:col-span-7 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <span>📊</span> 10,000회 이상 무작위 알고리즘 Monte Carlo 통계 판독 차트
@@ -895,119 +859,149 @@ export default function SaealsimDashboard() {
                 좌측에서 엔진 가동 버튼을 선택하면 몬테카를로 난수 연산 집계가 활성화됩니다.
               </div>
             )}
-          </div>
+          </section>
+        </div>
 
-          {/* ⭐ [위치 4] Play-by-Play 단판 하이라이트 주행 디스플레이 (실시간 1등 자동 카메라 스크롤 추적 탑재!) */}
-          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
-            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
-            <div className="flex justify-between items-center text-xs mb-4">
-              <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🎮</span> Play-by-Play 단판 하이라이트 주행 디스플레이 
-                <span className="text-[10px] text-cyan-400 font-mono bg-cyan-950/50 border border-cyan-800/40 px-1.5 py-0.5 rounded animate-pulse">🎥 1등 카메라 락 온</span>
-              </h2>
-              {visualGame && (
-                <div className="flex items-center space-x-2 bg-slate-950 px-2.5 py-1 border border-slate-800 rounded-lg">
-                  <button 
-                    onClick={() => { setIsPlaying(false); setCurrentRoundIdx(0); }}
-                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold"
-                  >
-                    🔄 처음으로
-                  </button>
-                  <button 
-                    onClick={() => setIsPlaying(!isPlaying)} 
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${isPlaying ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}
-                  >
-                    {isPlaying ? '⏸️ 정지' : '▶️ 재생'}
-                  </button>
-                  <span className="text-slate-500 font-mono text-[10px]">R: {currentRoundIdx}/{visualGame.totalRounds}</span>
-                </div>
-              )}
-            </div>
-            
-            {visualGame && currentBoardState ? (
-              <div className="space-y-3">
-                {/* ── 🔮 [리팩토링] trackContainerRef를 심어 가로 스크롤을 자바스크립트로 강제 통제합니다 ── */}
-                <div 
-                  ref={trackContainerRef}
-                  className="overflow-x-auto pb-2 flex space-x-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 scrollbar-thin scroll-smooth"
+        {/* ⭐ [2단: 독립 전광판 승격!] Play-by-Play 단판 하이라이트 주행 디스플레이 (Full Width 전체 개방) */}
+        <section className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+          <div className="flex justify-between items-center text-xs mb-4">
+            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🎮</span> Play-by-Play 단판 하이라이트 주행 디스플레이 
+              <span className="text-[10px] text-cyan-400 font-mono bg-cyan-950/50 border border-cyan-800/40 px-1.5 py-0.5 rounded animate-pulse">🎥 1등 카메라 자동 추적 락온</span>
+            </h2>
+            {visualGame && (
+              <div className="flex items-center space-x-2 bg-slate-950 px-2.5 py-1 border border-slate-800 rounded-lg">
+                <button 
+                  onClick={() => { setIsPlaying(false); setCurrentRoundIdx(0); }}
+                  className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold"
                 >
-                  {Array.from({ length: 32 }).map((_, i) => {
-                    const stack = currentBoardState.stacks[i] || [];
-                    const type = TRACKS[selectedTrack].layout[i];
-                    
-                    let tileStyle = "bg-slate-900/50 border-slate-800/60";
-                    let tileIcon = "";
-                    let tileName = "";
-
-                    if (i === 0) {
-                      tileStyle = "bg-blue-950/40 border-blue-600/50 shadow-inner text-blue-400";
-                      tileName = "START";
-                    } else if (i === 31) {
-                      tileStyle = "bg-emerald-950/40 border-emerald-600/50 shadow-inner text-emerald-400";
-                      tileName = "GOAL";
-                    } else if (type === 'B') {
-                      tileStyle = "bg-emerald-900/20 border-emerald-500/30 text-emerald-400 font-black";
-                      tileIcon = "▶▶";
-                      tileName = "BOOST";
-                    } else if (type === 'R') {
-                      tileStyle = "bg-rose-900/20 border-rose-500/30 text-rose-400 font-black";
-                      tileIcon = "◀◀";
-                      tileName = "REVERSE";
-                    } else if (type === 'C') {
-                      tileStyle = "bg-purple-900/20 border-purple-500/30 text-purple-400 font-black";
-                      tileIcon = "🌀";
-                      tileName = "CRACK";
-                    }
-
-                    return (
-                      <div 
-                        key={i} 
-                        className={`w-12 h-20 border flex flex-col justify-between p-1 text-[8px] rounded-lg shrink-0 transition-all ${tileStyle}`}
-                      >
-                        <div className="flex justify-between font-mono text-slate-500 font-bold">
-                          <span>{String(i).padStart(2, '0')}</span>
-                          <span className="text-[8px] tracking-tighter">{tileIcon}</span>
-                        </div>
-
-                        {tileName && (
-                          <div className="text-[7px] font-black text-center opacity-60 tracking-tighter -mt-1 font-sans">
-                            {tileName}
-                          </div>
-                        )}
-
-                        <div className="flex flex-col-reverse space-y-reverse space-y-0.5 overflow-y-auto max-h-[38px] pr-0.5">
-                          {stack.map((item, idx) => (
-                            <div 
-                              key={idx} 
-                              className="h-3 rounded text-center text-[7.5px] font-black text-slate-950 truncate flex items-center justify-center shadow-sm" 
-                              style={{ backgroundColor: item === 'ABE' ? '#f43f5e' : SAEALSIMS.find(p => p.id === activeRoster[item])?.color }}
-                            >
-                              {item === 'ABE' ? '👑Abe' : SAEALSIMS.find(p => p.id === activeRoster[item])?.name}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="bg-slate-950 border border-slate-800/60 rounded-xl p-2.5 text-[10px] font-mono text-slate-400 max-h-[70px] overflow-y-auto shadow-inner">
-                  {currentBoardState.log.map((logLine, idx) => (
-                    <div key={idx} className="flex gap-1.5 items-center text-slate-300 py-0.5">
-                      <span className="text-amber-500 text-[8px]">⚡</span>
-                      <span>{logLine}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="h-[120px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
-                시뮬레이션이 발동되면 임의로 추출된 1게임의 박진감 넘치는 라운드별 변동 이력이 연동됩니다.
+                  🔄 처음으로
+                </button>
+                <button 
+                  onClick={() => setIsPlaying(!isPlaying)} 
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${isPlaying ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}
+                >
+                  {isPlaying ? '⏸️ 정지' : '▶️ 재생'}
+                </button>
+                <span className="text-slate-500 font-mono text-[10px]">R: {currentRoundIdx}/{visualGame.totalRounds}</span>
               </div>
             )}
           </div>
+          
+          {visualGame && currentBoardState ? (
+            <div className="space-y-3">
+              <div 
+                ref={trackContainerRef}
+                className="overflow-x-auto pb-2 flex space-x-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 scrollbar-thin scroll-smooth"
+              >
+                {Array.from({ length: 32 }).map((_, i) => {
+                  const stack = currentBoardState.stacks[i] || [];
+                  const type = TRACKS[selectedTrack].layout[i];
+                  
+                  let tileStyle = "bg-slate-900/50 border-slate-800/60";
+                  let tileIcon = "";
+                  let tileName = "";
 
-          {/* ⭐ [위치 대이동 5] LLM AI 분석 가상 에이전트 브리핑룸 (최하단 정렬 배치) */}
-          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
+                  if (i === 0) {
+                    tileStyle = "bg-blue-950/40 border-blue-600/50 shadow-inner text-blue-400";
+                    tileName = "START";
+                  } else if (i === 31) {
+                    tileStyle = "bg-emerald-950/40 border-emerald-600/50 shadow-inner text-emerald-400";
+                    tileName = "GOAL";
+                  } else if (type === 'B') {
+                    tileStyle = "bg-emerald-900/20 border-emerald-500/30 text-emerald-400 font-black";
+                    tileIcon = "▶▶";
+                    tileName = "BOOST";
+                  } else if (type === 'R') {
+                    tileStyle = "bg-rose-900/20 border-rose-500/30 text-rose-400 font-black";
+                    tileIcon = "◀◀";
+                    tileName = "REVERSE";
+                  } else if (type === 'C') {
+                    tileStyle = "bg-purple-900/20 border-purple-500/30 text-purple-400 font-black";
+                    tileIcon = "🌀";
+                    tileName = "CRACK";
+                  }
+
+                  return (
+                    <div 
+                      key={i} 
+                      className={`w-12 h-20 border flex flex-col justify-between p-1 text-[8px] rounded-lg shrink-0 transition-all ${tileStyle}`}
+                    >
+                      <div className="flex justify-between font-mono text-slate-500 font-bold">
+                        <span>{String(i).padStart(2, '0')}</span>
+                        <span className="text-[8px] tracking-tighter">{tileIcon}</span>
+                      </div>
+
+                      {tileName && (
+                        <div className="text-[7px] font-black text-center opacity-60 tracking-tighter -mt-1 font-sans">
+                          {tileName}
+                        </div>
+                      )}
+
+                      <div className="flex flex-col-reverse space-y-reverse space-y-0.5 overflow-y-auto max-h-[38px] pr-0.5">
+                        {stack.map((item, idx) => (
+                          <div 
+                            key={idx} 
+                            className="h-3 rounded text-center text-[7.5px] font-black text-slate-950 truncate flex items-center justify-center shadow-sm" 
+                            style={{ backgroundColor: item === 'ABE' ? '#f43f5e' : SAEALSIMS.find(p => p.id === activeRoster[item])?.color }}
+                          >
+                            {item === 'ABE' ? '👑Abe' : SAEALSIMS.find(p => p.id === activeRoster[item])?.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="bg-slate-950 border border-slate-800/60 rounded-xl p-2.5 text-[10px] font-mono text-slate-400 max-h-[70px] overflow-y-auto shadow-inner">
+                {currentBoardState.log.map((logLine, idx) => (
+                  <div key={idx} className="flex gap-1.5 items-center text-slate-300 py-0.5">
+                    <span className="text-amber-500 text-[8px]">⚡</span>
+                    <span>{logLine}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="h-[120px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
+              시뮬레이션이 가동되면 이곳에 임의로 추출된 1게임의 박진감 넘치는 실시간 주행 레이스가 곧바로 펼쳐집니다!
+            </div>
+          )}
+        </section>
+
+        {/* [3단: 하단 인벤토리 로스터 풀 & AI 분석 브리핑룸 정렬] */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          {/* 출전 새알심 풀 로스터 */}
+          <section className="xl:col-span-5 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500" />
+            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex justify-between items-center">
+              <span>🥚 출전 새알심 커스텀 풀 로스터 스펙</span>
+              <span className="text-cyan-400 font-mono text-xs font-bold bg-cyan-950/40 border border-cyan-800/30 px-2 py-0.5 rounded-full">{activeRoster.length} / 6 선택됨</span>
+            </h2>
+            
+            <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[220px] pr-1 p-2 bg-slate-950/30 rounded-xl">
+              {SAEALSIMS.map(s => {
+                const isSelected = activeRoster.includes(s.id);
+                return (
+                  <button 
+                    key={s.id} 
+                    onClick={() => toggleSaealsim(s.id)} 
+                    className={`p-2.5 rounded-xl border text-left transition-all ${isSelected ? 'border-amber-500 bg-amber-500/10 shadow-md':'border-slate-800/60 bg-slate-950/40 hover:border-slate-700'}`}
+                  >
+                    <div className="flex justify-between items-center font-bold text-xs">
+                      <span style={{ color: s.color }}>● {s.name}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${s.tier==='S'?'bg-red-500/10 text-red-400':s.tier==='A'?'bg-orange-500/10 text-orange-400':'bg-slate-800 text-slate-400'}`}>{s.tier}티어</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-tight mt-1 line-clamp-2 h-7">{s.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* AI 브리핑룸 */}
+          <section className="xl:col-span-7 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <span>✨</span> LLM AI 분석 가상 에이전트 브리핑룸
@@ -1034,9 +1028,9 @@ export default function SaealsimDashboard() {
                 </span>
               )}
             </div>
-          </div>
+          </section>
+        </div>
 
-        </section>
       </main>
     </div>
   );
