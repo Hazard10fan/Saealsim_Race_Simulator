@@ -30,57 +30,75 @@
 ### 3. 서버 사이드 보안 변수(env) 연동을 통한 UX 혁신
 초기 설계의 `window.prompt` 키 입력 방식을 제거하고, **Vercel Environment Variables** 인프라를 구축했습니다. 클라이언트 소스코드나 사용자 브라우저에 개발자의 API Key가 절대 유출 및 노출되지 않도록 서버 사이드 금고 시스템과 연동하여, **보안성 100%를 유지함과 동시에 사용자에게는 로그인 없는 '원클릭 AI 분석 환경'을 제공**합니다.
 
-### 4. 클라우드 비용 통제를 위한 이중 방어막 (Rate Limiting) 설계
-Vercel에 API Key를 심어 원클릭 오픈할 경우 발생할 수 있는 악의적인 무단 연타(DDoS) 매크로 및 사용자의 과도한 호출로 인한 구글 API Quota 고갈/비용 폭탄 위험을 통제하기 위해 **프론트엔드 이중 방어 로직**을 직접 설계했습니다.
+### 4. 사용자 맞춤형 가이드 팝업 및 트리플 엔진 동시 가동(Orchestration)
+사용자가 단판 시각화와 AI 에이전트 분석을 수동으로 각각 조작해야 했던 기존 인터랙션 단점과 UI 배치 순서를 UX 흐름에 맞춰 대대적으로 리팩토링했습니다.
+- **가이드 유도형 모달(Modal) 탑재:** 시뮬레이션 가동 버튼을 누르면 직관적인 안내 팝업이 활성화되어, 3종의 가상 AI 에이전트 중 사용자가 원하는 분석 스펙트럼을 직접 선택하도록 유도합니다. (Default: 마동선 족집게 예측)
+- **원클릭 3대 엔진 동시 제어:** 에이전트 선택과 동시에 `[대량 통계 연산 루프]` ➔ `[무작위 1판 덤프 시각화 하이라이트 레이싱 재생]` ➔ `[백그라운드 LLM API 사전 패칭 및 가짜 실시간 홀더 메시지 연출]`이 오케스트라처럼 세트로 연동되어 유기적으로 동작합니다.
+- **사용자 시선 중심 레이아웃 재배치:** `통계 차트` 아래로 `Play-by-Play 주행 디스플레이`를 승격시키고, 최종 요약 리포트 영역인 `AI 브리핑룸`을 최하단으로 내림으로써, 말들의 완주 과정을 감상한 뒤 AI 해설을 자연스럽게 읽어내려가는 이상적인 시각적 스토리텔링을 구현했습니다.
+
+### 5. 클라우드 비용 통제를 위한 이중 방어막 (Rate Limiting) 설계
+구글 API Quota 고갈 및 요금 폭탄 리스크를 완벽히 통제하기 위해 프론트엔드 이중 방어 로직을 컴포넌트 내부에 직접 설계했습니다.
 - **1차 방어 (Debouncing 쿨타임):** AI 브리핑 요청 즉시 상태 변수를 제어하여 버튼을 `disabled` 처리하고 `🔒 분석 쿨타임 대기` UI를 반영, **10초간의 연속 클릭 요청을 웹 브라우저 단에서 원천 차단**합니다.
 - **2차 방어 (세션 기반 사용 제한):** 단일 접속 세션 메모리에 누적 호출 카운터를 심어 **인당 최대 3회 초과 요청 시** 경고창 팝업과 함께 함수 실행을 영구 중지(`return`)시킵니다. 악의적인 봇의 무한 연타 공격을 완벽히 무력화하여 클라우드 계정의 자산을 철저히 방어합니다.
 
 ---
 
-## 💻 핵심 보안 방어벽 소스코드 (React)
+## 💻 핵심 동시 구동 및 보안 방어벽 소스코드 (React)
 
 ```javascript
-const triggerAiAnalysis = async (type) => {
-  if (!simResults) return;
+// 팝업창에서 에이전트를 최종 클릭 시 3대 엔진(통계, 단판 애니메이션, AI)이 동시 결합 가동
+const executeSimulationAndAiCombo = async (chosenMode) => {
+  setSelectedAiMode(chosenMode);
+  setIsAgentModalOpen(false); // 가이드 모달 닫기
+  setIsSimulating(true);
+  setAiLoading(true);
 
-  // [방어벽 A] 10초 쿨타임 주기 중 연타 시도 시 즉시 무시
-  if (isAiAnalyzing) return;
-
-  // [방어벽 B] 1인당 누적 3회 초과 시 브라우저 알림 후 접근 완전 차단
-  if (aiCallCount >= 3) {
-    alert("⚠️ 과도한 AI 트래픽이 감지되었습니다. 원활한 공용 서버 운영을 위해 잠시 후 다시 시도해 주세요!");
-    return;
+  // 1. [연출 엔진] 에이전트 모드별 실시간 가짜 홀더 메시지 선제 세팅
+  if (chosenMode === "madongseon") {
+    setAiStatusMessage("🎲 마동선이 담배를 물고 주행 시뮬레이션 데이터를 야수가 가득한 눈빛으로 파싱 중입니다...");
+  } else if (chosenMode === "sports") {
+    setAiStatusMessage("🎙️ 메인 캐스터가 마이크를 켜고 단판 하이라이트 로그 스크립트를 벼르는 중입니다...");
+  } else {
+    setAiStatusMessage("📐 총괄 밸런스 디자이너가 승률 편차 매트릭스를 취합해 패치 노트를 고안 중입니다...");
   }
 
+  // ... [비동기 청크 몬테카를로 통계 연산 수행] ...
+
+  // 2. [시각화 엔진] 통계 완료 직후 무작위 1판 덤프 로그 바인딩 및 주행 플레이어 자동 재생
+  const singlePlaybackGame = runSingleGame(activeRoster, selectedTrack);
+  setVisualGame(singlePlaybackGame);
+  setIsPlaying(true); 
+
+  // 3. [AI 분석 엔진] 백그라운드 LLM 프롬프트 파이프라인 전송 가동
+  await processLiveAiReport(compiledResults, singlePlaybackGame, chosenMode);
+};
+
+// 비용 보호를 위한 실시간 레이트 리밋 제어부
+const processLiveAiReport = async (stats, playback, mode) => {
+  if (aiCallCount >= 3) return; // [방어벽 B] 세션 제한 차단
+
   try {
-    setIsAiAnalyzing(true); // 🔒 1단계 잠금 가동 (버튼 비활성화)
+    setIsAiAnalyzing(true); // [방어벽 A] 🔒 10초 쿨타임 락 온
     const res = await callGeminiWithBackoff(prompt, systemPrompt);
     setAiReport(res);
-    
-    setAiCallCount(prev => prev + 1); // 호출 성공 시에만 카운터 증가
+    setAiCallCount(prev => prev + 1); // 사용 한도 카운트 업
   } catch (e) {
-    console.error(e);
+    setAiError("에러 발생: " + e.message);
   } finally {
     setAiLoading(false);
-    // [방어벽 C] 요청 완료 후 봇 연타 방지를 위해 '10초' 동안 쿨타임 UI 강제 유지
-    setTimeout(() => {
-      setIsAiAnalyzing(false); // 🔓 10초 후 안전하게 잠금 해제
-    }, 10000);
+    setTimeout(() => { setIsAiAnalyzing(false); }, 10000); // [방어벽 C] 🔓 10초 후 안전 해제
   }
 };
 ```
----
 
+---
 ## 📊 시뮬레이션 메커니즘 & 프리셋 규칙
 🏁 트랙 환경 모델
 일반 경기 프리셋: 추진 장치(B) 4개, 억제 장치(R) 2개, 균열 장치(C) 2개 포진된 변수 중심 트랙
 
 토너먼트 전용 프리셋: 기믹 타일을 3개씩 대칭 축소하여 새알심 고유의 스피드 스킬 기댓값을 강조한 전술 트랙
 
-[출발] - N - N - B - N - C - N - N - N - B - N - N - N - C - N - R - N - N - N - B - N - N - C - N - N - R - N - N - N - R - N - [도착]
-
 ---
-
 ## 🥚 주요 출전 로스터 및 스킬 도메인
 린네 (S-Tier / 스피드): 60% 확률로 주사위 2배 이동, 20% 확률로 침묵(이동 불가).
 
@@ -93,7 +111,7 @@ const triggerAiAnalysis = async (type) => {
 ---
 
 ## 🤖 Gemini API 기반 AI 브리핑 시스템
-시뮬레이션 완료 후, 수집된 승률 통계 배열과 단판 주행 텍스트 로그를 LLM 프롬프트 파이프라인과 결합하여 세 가지 확장 피처를 제공합니다.
+시뮬레이션 완료 후, 수집된 승률 통계 배열과 단판 주행 텍스트 로그를 LLM 프롬프트 파이프라인과 결합하여 안내 유도 모달 팝업창 선택지에 따라 세 가지 가상 에이전트 확장 피처를 동시성(Concurrency) 로직으로 연동 제공합니다.
 
 AI 도박사 '마동선'의 족집게 분석: 몬테카를로 데이터를 해석하여 정배/역배 요인 분석 및 픽 추천 (거칠고 찰진 현장감 있는 한국어 도박사 페르소나 주입)
 
