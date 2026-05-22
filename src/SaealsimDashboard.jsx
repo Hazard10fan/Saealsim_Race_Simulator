@@ -65,7 +65,7 @@ const SAEALSIMS = [
   { id: 'monier', name: '모니에', color: '#64748b', desc: '주사위 값 고정 시퀀스: 3 → 2 → 1 반복 발동.', tier: 'F', type: '고정' },
   { id: 'carlotta', name: '카를로타', color: '#f59e0b', desc: '28% 확률로 주사위 값 2배 이동.', tier: 'B', type: '스피드' },
   { id: 'jangri', name: '장리', color: '#ef4444', desc: '자신 아래에 다른 새알심이 있을 경우, 65% 확률로 다음 라운드 마지막으로 행동.', tier: 'S', type: '전략' },
-  { id: 'yuno', name: '유노', color: '#14b8a6', desc: '경기당 1회, 중간 지점 통과 후 자신의 앞뒤 새알심을 자신의 칸으로 전송 (랭킹 순서 유지).', tier: 'A', type: '전략' },
+  { id: 'yuno', name: '유노', color: '#14b8a6', desc: '경기당 1회, 중간 지점 통과 후 자신의 앞뒤 새알심을 자신의 칸으로 전송 (랭킹 순서 유지).', tier: 'A', text: '전략' },
   { id: 'floro', name: '플로로', color: '#fb923c', desc: '라운드 시작 시 스택 맨 아래에 있으면 이동 시 추가 +3칸 전진.', tier: 'A', type: '엔진' },
   { id: 'kakaru', name: '카카루', color: '#6366f1', desc: '이동 시작 시 꼴찌일 경우 추가 +3칸 전진.', tier: 'B', type: '추격' },
   { id: 'augusta', name: '아우구스타', color: '#94a3b8', desc: '맨 위에 있으면 이번 라운드 행동 불가 및 다음 라운드 마지막 행동.', tier: 'F', type: '페널티' },
@@ -756,36 +756,37 @@ export default function SaealsimDashboard() {
         </div>
       </header>
 
-      {/* ── 🔮 [장우님 대전환 기획] 입력/출력 상하 대규모 분리형 아키텍처 그리드 개막 ── */}
+      {/* 대시보드 그리드 본체 */}
       <main className="flex-1 max-w-[1700px] w-full mx-auto p-6 lg:p-8 space-y-6">
         
         {/* ────────── [1단: LIVE STADIUM - 시각화/출력창 상단 고정 배치] ────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
           
-          {/* 위치 A: 몬테카를로 통계 판독 차트 */}
-          <section className="xl:col-span-5 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
+          {/* 위치 A: 몬테카를로 통계 판독 차트 (높이 최적화 스펙 복원 완공) */}
+          <section className="xl:col-span-5 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative flex flex-col justify-between">
             <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <span>📊</span> 10,000회 이상 무작위 알고리즘 Monte Carlo 통계 판독 차트
             </h2>
             
             {isSimulating ? (
-              <div className="h-[200px] flex flex-col items-center justify-center text-xs text-slate-400 border border-slate-800/50 rounded-xl bg-slate-950/20">
+              <div className="h-[210px] flex flex-col items-center justify-center text-xs text-slate-400 border border-slate-800/50 rounded-xl bg-slate-950/20">
                 <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3" />
                 <span>대용량 시뮬레이션 루프 난수 데이터 연산 추출 중...</span>
               </div>
             ) : simResults ? (
-              <div className="space-y-4">
+              <div className="space-y-4 flex-1 flex flex-col justify-between">
                 <div className="flex space-x-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 text-[11px] font-semibold">
                   <div className="flex-1 text-center border-r border-slate-800">총 시행: <span className="text-amber-400 font-black">{simResults.totalSims.toLocaleString()}회</span></div>
                   <div className="flex-1 text-center">평균 완주: <span className="text-indigo-400 font-black">{simResults.avgRounds} R</span></div>
                 </div>
-                <div className="space-y-2 border border-slate-800/40 p-3 bg-slate-950/20 rounded-xl max-h-[125px] overflow-y-auto">
+                {/* ── 🔮 [리팩토링 고정 스펙] 잘림 버그 원천 해결: max-h 봉인 해제 및 패딩 마진 정돈 ── */}
+                <div className="space-y-2.5 border border-slate-800/40 p-3.5 bg-slate-950/20 rounded-xl flex-1 flex flex-col justify-center">
                   {activeRoster.map((id, i) => {
                     const s = SAEALSIMS.find(p => p.id === id); 
                     const pct = simResults.winPercent[i] || "0.0";
                     return (
-                      <div key={id} className="flex items-center space-x-3 text-xs py-0.5">
+                      <div key={id} className="flex items-center space-x-3 text-xs">
                         <div className="w-14 font-bold text-slate-300 truncate text-[11px]">{s?.name}</div>
                         <div className="flex-1 bg-slate-950 h-5 rounded-md relative border border-slate-800/60 overflow-hidden flex items-center">
                           <div className="h-full rounded-r transition-all duration-1000 ease-out" style={{ width: `${pct}%`, backgroundColor: s?.color }} />
@@ -797,7 +798,7 @@ export default function SaealsimDashboard() {
                 </div>
               </div>
             ) : (
-              <div className="h-[200px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
+              <div className="h-[210px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
                 하단의 컨트롤 타워에서 매치업 세팅 후 가동하면 실시간 난수 통계 미터가 연동됩니다.
               </div>
             )}
@@ -878,7 +879,7 @@ export default function SaealsimDashboard() {
                 </div>
               </div>
             ) : (
-              <div className="h-[200px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
+              <div className="h-[210px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
                 시뮬레이션 가동 즉시 임의로 가공된 단판 하이라이트 박레이싱이 1등 포커싱 무빙 앵글로 상단에 중계됩니다!
               </div>
             )}
@@ -888,7 +889,7 @@ export default function SaealsimDashboard() {
         {/* ────────── [2단: CONTROL CENTER - 입력/조작영역 하단 대통합 배치] ────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
           
-          {/* 통합 입력 패널 1: 제어 매개변수 설정 */}
+          {/* 제어 매개변수 설정 */}
           <section className="xl:col-span-5 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
@@ -947,7 +948,7 @@ export default function SaealsimDashboard() {
             </div>
           </section>
 
-          {/* 통합 입력 패널 2: 출전 새알심 풀 로스터 스펙 인벤토리 */}
+          {/* 출전 새알심 풀 로스터 스펙 */}
           <section className="xl:col-span-7 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex justify-between items-center">
