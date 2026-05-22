@@ -120,10 +120,9 @@ export default function SaealsimDashboard() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   
-  // ── 🔮 장우님 기획 신규 기믹 상태 변수 ──
-  const [selectedAiMode, setSelectedAiMode] = useState("madongseon"); // Default 값 고정
-  const [aiStatusMessage, setAiStatusMessage] = useState("");          // 가짜 연동 메시지용
-  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);     // 어떤걸 선택하시겠습니까 모달 락
+  const [selectedAiMode, setSelectedAiMode] = useState("madongseon"); 
+  const [aiStatusMessage, setAiStatusMessage] = useState("");          
+  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);     
 
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false); 
   const [aiCallCount, setAiCallCount] = useState(0);         
@@ -393,7 +392,6 @@ export default function SaealsimDashboard() {
     return { winner: winner !== null ? players[winner] : null, rounds: roundsLog, totalRounds: currentRound };
   };
 
-  // ── 🔮 [수정&통합] 원클릭 3대 엔진 동시 제어 마스터 펑션 ──
   const handleStartClick = () => {
     if (activeRoster.length < 3) {
       alert("최소 3명 이상의 새알심을 선택해야 매치 가동이 가능합니다!");
@@ -403,7 +401,6 @@ export default function SaealsimDashboard() {
       alert("⚠️ 과도한 AI 트래픽이 감지되었습니다. 원활한 공용 서버 운영을 위해 잠시 후 다시 시도해 주세요!");
       return;
     }
-    // 사용 한도 안 넘었으면 어떤 에이전트 쓸지 고르는 모달 오픈!
     setIsAgentModalOpen(true);
   };
 
@@ -416,7 +413,6 @@ export default function SaealsimDashboard() {
     setAiReport("");
     setAiLoading(true);
 
-    // 1. 실시간 가짜 홀더 메시지 우선 세팅 연출
     if (chosenMode === "madongseon") {
       setAiStatusMessage("🎲 마동선이 담배를 물고 주행 시뮬레이션 데이터를 야수가 가득한 눈빛으로 파싱 중입니다...");
     } else if (chosenMode === "sports") {
@@ -434,7 +430,6 @@ export default function SaealsimDashboard() {
     const chunkSize = Math.max(1000, Math.floor(totalSims / 10));
     let completed = 0;
 
-    // 내부 연산 엔진 (비동기 청크 구조 원리 보존)
     const executeChunk = async () => {
       const target = Math.min(completed + chunkSize, totalSims);
       for (let sim = completed; sim < target; sim++) {
@@ -606,20 +601,17 @@ export default function SaealsimDashboard() {
         };
         setSimResults(compiledResults);
 
-        // 2. [동시 엔진 2] 대량 통계 집계 끝난 즉시 무작위 1판 가동 타이머 트리거 자동 실행
         const singlePlaybackGame = runSingleGame(activeRoster, selectedTrack);
         setVisualGame(singlePlaybackGame);
         setCurrentRoundIdx(0);
-        setIsPlaying(true); // 자동 재생 락 가동
+        setIsPlaying(true); 
 
-        // 3. [동시 엔진 3] 통계 완공 직후 백그라운드 LLM 프롬프트 파이프라인 결합 발송
         await processLiveAiReport(compiledResults, singlePlaybackGame, chosenMode);
       }
     };
     setTimeout(executeChunk, 10);
   };
 
-  // 백그라운드 LLM 정밀 프롬프트 파이프라인 전송 및 저장 제어부
   const processLiveAiReport = async (stats, playback, mode) => {
     setAiLoading(true);
     setAiError("");
@@ -659,7 +651,6 @@ export default function SaealsimDashboard() {
     return visualGame.rounds[currentRoundIdx];
   }, [visualGame, currentRoundIdx]);
 
-  // 자동 재생용 타이머 훅
   useEffect(() => {
     if (isPlaying && visualGame) {
       playbackTimer.current = setInterval(() => {
@@ -680,7 +671,6 @@ export default function SaealsimDashboard() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative">
       
-      {/* ── 🔮 장우님 기획: 안내 가이드 유도형 모달 팝업 렌더링 ── */}
       {isAgentModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn">
           <div className="bg-slate-900 border border-purple-500/40 p-6 rounded-2xl max-w-sm w-full shadow-2xl text-center border-t-4 border-t-purple-500">
@@ -790,7 +780,6 @@ export default function SaealsimDashboard() {
                 <option value={100000}>100,000회 연산 (Precise)</option>
               </select>
               
-              {/* ── 🔮 팝업 선택창 유도로 로직 결합 교체 완료! ── */}
               <button 
                 onClick={handleStartClick} 
                 disabled={isSimulating} 
@@ -873,7 +862,7 @@ export default function SaealsimDashboard() {
             )}
           </div>
 
-          {/* ⭐ [위치 대이동 4] Play-by-Play 단판 하이라이트 주행 디스플레이 (브리핑룸 위로 승격) */}
+          {/* ⭐ [위치 대이동 4] Play-by-Play 단판 하이라이트 주행 디스플레이 (트랙 시각화 완전 커스텀 개편) */}
           <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
             <div className="flex justify-between items-center text-xs mb-4">
@@ -901,19 +890,63 @@ export default function SaealsimDashboard() {
             
             {visualGame && currentBoardState ? (
               <div className="space-y-3">
+                {/* ── 🔮 [리팩토링] 하이테크 스타일 이모지 및 그라데이션 트랙 매핑 가동 ── */}
                 <div className="overflow-x-auto pb-2 flex space-x-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 scrollbar-thin">
                   {Array.from({ length: 32 }).map((_, i) => {
                     const stack = currentBoardState.stacks[i] || [];
                     const type = TRACKS[selectedTrack].layout[i];
+                    
+                    // 조건부 스타일/아이콘 주입 자동화
+                    let tileStyle = "bg-slate-900/50 border-slate-800/60";
+                    let tileIcon = "";
+                    let tileName = "";
+
+                    if (i === 0) {
+                      tileStyle = "bg-blue-950/40 border-blue-600/50 shadow-inner text-blue-400";
+                      tileName = "START";
+                    } else if (i === 31) {
+                      tileStyle = "bg-emerald-950/40 border-emerald-600/50 shadow-inner text-emerald-400";
+                      tileName = "GOAL";
+                    } else if (type === 'B') {
+                      tileStyle = "bg-emerald-900/20 border-emerald-500/30 text-emerald-400 font-black";
+                      tileIcon = "▶▶";
+                      tileName = "BOOST";
+                    } else if (type === 'R') {
+                      tileStyle = "bg-rose-900/20 border-rose-500/30 text-rose-400 font-black";
+                      tileIcon = "◀◀";
+                      tileName = "REVERSE";
+                    } else if (type === 'C') {
+                      tileStyle = "bg-purple-900/20 border-purple-500/30 text-purple-400 font-black";
+                      tileIcon = "🌀";
+                      tileName = "CRACK";
+                    }
+
                     return (
-                      <div key={i} className={`w-12 h-20 border flex flex-col justify-between p-1 text-[8px] rounded-lg shrink-0 ${i === 0 ? 'bg-blue-950/30 border-blue-800/40': i === 31 ? 'bg-emerald-950/30 border-emerald-800/40' : 'bg-slate-900/50 border-slate-800/50'}`}>
-                        <div className="flex justify-between font-mono text-slate-500">
-                          <span>{i}</span>
-                          <span className="text-amber-400 font-black">{type !== 'N' && type}</span>
+                      <div 
+                        key={i} 
+                        className={`w-12 h-20 border flex flex-col justify-between p-1 text-[8px] rounded-lg shrink-0 transition-all ${tileStyle}`}
+                      >
+                        {/* 상단 인덱스 및 상태 아이콘 스트림 */}
+                        <div className="flex justify-between font-mono text-slate-500 font-bold">
+                          <span>{String(i).padStart(2, '0')}</span>
+                          <span className="text-[8px] tracking-tighter">{tileIcon}</span>
                         </div>
-                        <div className="flex flex-col-reverse space-y-reverse space-y-0.5 overflow-y-auto max-h-[42px]">
+
+                        {/* 중간 장치 가이드 명칭 */}
+                        {tileName && (
+                          <div className="text-[7px] font-black text-center opacity-60 tracking-tighter -mt-1 font-sans">
+                            {tileName}
+                          </div>
+                        )}
+
+                        {/* 하단 새알심 물리적 스택 기믹 조작부 */}
+                        <div className="flex flex-col-reverse space-y-reverse space-y-0.5 overflow-y-auto max-h-[38px] pr-0.5">
                           {stack.map((item, idx) => (
-                            <div key={idx} className="h-3 rounded text-center text-[8px] font-black text-slate-950 truncate flex items-center justify-center" style={{ backgroundColor: item === 'ABE' ? '#f43f5e' : SAEALSIMS.find(p => p.id === activeRoster[item])?.color }}>
+                            <div 
+                              key={idx} 
+                              className="h-3 rounded text-center text-[7.5px] font-black text-slate-950 truncate flex items-center justify-center shadow-sm" 
+                              style={{ backgroundColor: item === 'ABE' ? '#f43f5e' : SAEALSIMS.find(p => p.id === activeRoster[item])?.color }}
+                            >
                               {item === 'ABE' ? '👑Abe' : SAEALSIMS.find(p => p.id === activeRoster[item])?.name}
                             </div>
                           ))}
