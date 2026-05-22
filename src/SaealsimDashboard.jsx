@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 // ==========================================
 // Gemini API Key 설정 및 호출 함수 (정식 모델 규격 최적화)
 // ==========================================
-// 💡 Vercel 환경변수(VITE_GEMINI_API_KEY)가 있으면 묻지 않고, 없을 때만 사용자에게 팝업을 띄우도록 방어막 설정!
 const getInitialApiKey = () => {
   if (typeof window !== 'undefined') {
     const envKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -16,10 +15,8 @@ const getInitialApiKey = () => {
 const apiKey = getInitialApiKey();
 
 const callGeminiWithBackoff = async (prompt, systemInstruction = "") => {
-  // 💡 정식 출시된 gemini-2.5-flash 모델 엔드포인트 고정
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
   
-  // 💡 구글 서버가 400 에러 없이 단번에 알아먹는 정석 페이로드 구조 개편
   const payload = {
     contents: [{ 
       parts: [{ text: prompt }] 
@@ -122,11 +119,14 @@ export default function SaealsimDashboard() {
   const [aiReport, setAiReport] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
-  const [activeAiTab, setActiveAiTab] = useState("");
+  
+  // ── 🔮 장우님 기획 신규 기믹 상태 변수 ──
+  const [selectedAiMode, setSelectedAiMode] = useState("madongseon"); // Default 값 고정
+  const [aiStatusMessage, setAiStatusMessage] = useState("");          // 가짜 연동 메시지용
+  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);     // 어떤걸 선택하시겠습니까 모달 락
 
-  // ── 🛡️ [수정 포인트 1] 악의적 연타 자산 보호용 보안 상태 변수 심기 ──
-  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false); // 10초 쿨타임 잠금 제어
-  const [aiCallCount, setAiCallCount] = useState(0);         // 1인당 일일 최대 3회 제한 카운터
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false); 
+  const [aiCallCount, setAiCallCount] = useState(0);         
 
   const loadPreset = (preset) => {
     setActiveRoster(preset.roster);
@@ -135,7 +135,6 @@ export default function SaealsimDashboard() {
     setSimResults(null);
     setVisualGame(null);
     setAiReport("");
-    setActiveAiTab("");
   };
 
   const toggleSaealsim = (id) => {
@@ -394,12 +393,38 @@ export default function SaealsimDashboard() {
     return { winner: winner !== null ? players[winner] : null, rounds: roundsLog, totalRounds: currentRound };
   };
 
-  // 10,000 ~ 100,000회 대용량 루프 몬테카를로 엔진
-  const runMonteCarlo = () => {
+  // ── 🔮 [수정&통합] 원클릭 3대 엔진 동시 제어 마스터 펑션 ──
+  const handleStartClick = () => {
+    if (activeRoster.length < 3) {
+      alert("최소 3명 이상의 새알심을 선택해야 매치 가동이 가능합니다!");
+      return;
+    }
+    if (aiCallCount >= 3) {
+      alert("⚠️ 과도한 AI 트래픽이 감지되었습니다. 원활한 공용 서버 운영을 위해 잠시 후 다시 시도해 주세요!");
+      return;
+    }
+    // 사용 한도 안 넘었으면 어떤 에이전트 쓸지 고르는 모달 오픈!
+    setIsAgentModalOpen(true);
+  };
+
+  const executeSimulationAndAiCombo = async (chosenMode) => {
+    setSelectedAiMode(chosenMode);
+    setIsAgentModalOpen(false);
+
     setIsSimulating(true);
     setProgress(0);
     setAiReport("");
-    
+    setAiLoading(true);
+
+    // 1. 실시간 가짜 홀더 메시지 우선 세팅 연출
+    if (chosenMode === "madongseon") {
+      setAiStatusMessage("🎲 마동선이 담배를 물고 주행 시뮬레이션 데이터를 야수가 가득한 눈빛으로 파싱 중입니다...");
+    } else if (chosenMode === "sports") {
+      setAiStatusMessage("🎙️ 메인 캐스터가 마이크를 켜고 단판 하이라이트 로그 스크립트를 벼르는 중입니다...");
+    } else {
+      setAiStatusMessage("📐 총괄 밸런스 디자이너가 승률 편차 매트릭스를 취합해 패치 노트를 고안 중입니다...");
+    }
+
     const layout = TRACKS[selectedTrack].layout;
     const players = activeRoster.map(id => SAEALSIMS.find(s => s.id === id));
     let winCounts = Array(players.length).fill(0);
@@ -409,7 +434,8 @@ export default function SaealsimDashboard() {
     const chunkSize = Math.max(1000, Math.floor(totalSims / 10));
     let completed = 0;
 
-    const executeChunk = () => {
+    // 내부 연산 엔진 (비동기 청크 구조 원리 보존)
+    const executeChunk = async () => {
       const target = Math.min(completed + chunkSize, totalSims);
       for (let sim = completed; sim < target; sim++) {
         let cellStacks = Array.from({ length: 32 }, () => []);
@@ -569,19 +595,63 @@ export default function SaealsimDashboard() {
 
       completed = target;
       setProgress(Math.floor((completed / totalSims) * 100));
-      if (completed < totalSims) setTimeout(executeChunk, 10);
-      else {
+      if (completed < totalSims) {
+        setTimeout(executeChunk, 10);
+      } else {
         setIsSimulating(false);
-        setSimResults({ 
+        const compiledResults = { 
           winPercent: winCounts.map(count => ((count / totalSims) * 100).toFixed(1)), 
           avgRounds: (roundFinishedCounts.reduce((a, b) => a + b, 0) / totalSims).toFixed(1), 
           totalSims 
-        });
-        setVisualGame(runSingleGame(activeRoster, selectedTrack));
+        };
+        setSimResults(compiledResults);
+
+        // 2. [동시 엔진 2] 대량 통계 집계 끝난 즉시 무작위 1판 가동 타이머 트리거 자동 실행
+        const singlePlaybackGame = runSingleGame(activeRoster, selectedTrack);
+        setVisualGame(singlePlaybackGame);
         setCurrentRoundIdx(0);
+        setIsPlaying(true); // 자동 재생 락 가동
+
+        // 3. [동시 엔진 3] 통계 완공 직후 백그라운드 LLM 프롬프트 파이프라인 결합 발송
+        await processLiveAiReport(compiledResults, singlePlaybackGame, chosenMode);
       }
     };
     setTimeout(executeChunk, 10);
+  };
+
+  // 백그라운드 LLM 정밀 프롬프트 파이프라인 전송 및 저장 제어부
+  const processLiveAiReport = async (stats, playback, mode) => {
+    setAiLoading(true);
+    setAiError("");
+    
+    const rosNames = activeRoster.map(id => SAEALSIMS.find(p => p.id === id).name).join(", ");
+    const winData = activeRoster.map((id, idx) => `${SAEALSIMS.find(p => p.id === id).name}: ${stats.winPercent[idx]}%`).join(", ");
+
+    let systemPrompt = "", prompt = "";
+    if (mode === 'madongseon') {
+      systemPrompt = "너는 불법 사설 배팅판에서 수십 년간 활약한 베테랑 도박사 캐릭터 '마동선'이다. 한국어 배팅 전문가다운 거칠고 찰진 현장 용어('정배', '역배', '형님들 배팅 주먹 꽉쥐고')를 구사하여 위트 있게 작성하라.";
+      prompt = `트랙: ${TRACKS[selectedTrack].name}, 라인업: [${rosNames}], 승률 데이터: [${winData}]. 마동선의 족집게 사설 배팅 예측 리포트를 브리핑해줘.`;
+    } else if (mode === 'sports') {
+      systemPrompt = "너는 열정적인 대한민국 E-sports 메인 캐스터다. 주사위 연산 및 장치 타일로 인해 뒤집히는 전개 상황을 육성 소리 지르듯 극적이고 긴장감 넘치게 해설하라.";
+      prompt = `단판 하이라이트 로그: ${playback?.rounds.flatMap(r => r.log).slice(0,15).join("\n")}. 최종 우승자: ${playback?.winner?.name}. 이 경기의 손에 땀을 쥐는 생중계 스크립트를 짜줘.`;
+    } else {
+      systemPrompt = "너는 세계 최고 권위의 보드게임 밸런스 총괄 디자이너다. 데이터 기반 패치 아이디어를 이성적이고 설득력 있게 제시하라.";
+      prompt = `현재 트랙: ${TRACKS[selectedTrack].name}, 승률 편차 데이터: [${winData}]. 우승 독점을 방해하거나 하위권을 구제할 참신한 밸런스 패치 아이디어를 제안해줘.`;
+    }
+
+    try {
+      setIsAiAnalyzing(true); 
+      const res = await callGeminiWithBackoff(prompt, systemPrompt);
+      setAiReport(res);
+      setAiCallCount(prev => prev + 1);
+    } catch (e) {
+      setAiError("API 분석 중 에러 발생: " + e.message);
+    } finally {
+      setAiLoading(false);
+      setTimeout(() => {
+        setIsAiAnalyzing(false); 
+      }, 10000);
+    }
   };
 
   const currentBoardState = useMemo(() => {
@@ -589,7 +659,7 @@ export default function SaealsimDashboard() {
     return visualGame.rounds[currentRoundIdx];
   }, [visualGame, currentRoundIdx]);
 
-  // 단판 트랙 주행 자동 플레이 타이머 제어
+  // 자동 재생용 타이머 훅
   useEffect(() => {
     if (isPlaying && visualGame) {
       playbackTimer.current = setInterval(() => {
@@ -607,60 +677,49 @@ export default function SaealsimDashboard() {
     return () => clearInterval(playbackTimer.current);
   }, [isPlaying, visualGame]);
 
-  // ── 🛡️ [수정 포인트 2] 악성 연타 및 무제한 청구 원천 차단 방어벽 로직 ──
-  const triggerAiAnalysis = async (type) => {
-    if (!simResults) return;
-
-    // 방어벽 A: 10초 쿨타임 주기 중 연타 시도 시 즉시 무시
-    if (isAiAnalyzing) return;
-
-    // 방어벽 B: 1인당 누적 3회 초과 시 브라우저 알림 후 접근 완전 차단
-    if (aiCallCount >= 3) {
-      alert("⚠️ 과도한 AI 트래픽이 감지되었습니다. 원활한 공용 서버 운영을 위해 잠시 후 다시 시도해 주세요!");
-      return;
-    }
-
-    setAiLoading(true); setAiError(""); setActiveAiTab(type);
-    const rosNames = activeRoster.map(id => SAEALSIMS.find(p => p.id === id).name).join(", ");
-    const winData = activeRoster.map((id, idx) => `${SAEALSIMS.find(p => p.id === id).name}: ${simResults.winPercent[idx]}%`).join(", ");
-
-    let systemPrompt = "", prompt = "";
-    if (type === 'commentary') {
-      systemPrompt = "너는 불법 사설 배팅판에서 수십 년간 활약한 베테랑 도박사 캐릭터 '마동선'이다. 한국어 경마 배팅 전문가다운 거칠고 찰진 현장 용어('정배', '역배', '올인 행님들')를 구사하여 위트 있게 작성하라.";
-      prompt = `트랙: ${TRACKS[selectedTrack].name}, 라인업: [${rosNames}], 승률: [${winData}]. 마동선의 족집게 사설 배팅 예측 리포트를 브리핑해줘.`;
-    } else if (type === 'live') {
-      systemPrompt = "너는 열정적인 대한민국 E-sports 메인 캐스터다. 주사위 연산 및 장치 타일로 인해 뒤집히는 전개 상황을 육성 소리 지르듯 극적이고 긴장감 넘치게 해설하라.";
-      prompt = `단판 하이라이트 로그: ${visualGame?.rounds.flatMap(r => r.log).slice(0,15).join("\n")}. 최종 우승자: ${visualGame?.winner?.name}. 이 경기의 손에 땀을 쥐는 생중계 스크립트를 짜줘.`;
-    } else {
-      systemPrompt = "너는 세계 최고 권위의 보드게임 밸런스 총괄 디자이너다. 데이터 기반 패치 아이디어를 이성적이고 설득력 있게 제시하라.";
-      prompt = `현재 트랙: ${TRACKS[selectedTrack].name}, 승률 편차 데이터: [${winData}]. 우승 독점을 방해하거나 하위권을 구제할 참신한 밸런스 패치 아이디어를 제안해줘.`;
-    }
-
-    try {
-      setIsAiAnalyzing(true); // 🔒 클릭 당일 1단계 잠금 버튼 락 온
-      const res = await callGeminiWithBackoff(prompt, systemPrompt);
-      setAiReport(res);
-      
-      // 요청 대성공 시 사용 횟수 누적 1 카운트 업
-      setAiCallCount(prev => prev + 1);
-    } catch (e) { 
-      setAiError("API 분석 중 에러 발생: " + e.message); 
-    } finally { 
-      setAiLoading(false); 
-      // 방어벽 C: 요청 완료 후 악의적 봇 연타 방지를 위해 '10초' 동안 쿨타임 상태 영구 강제 유지
-      setTimeout(() => {
-        setIsAiAnalyzing(false); // 🔓 10초 후에 안전하게 해제
-      }, 10000);
-    }
-  };
-
-  useEffect(() => {
-    runMonteCarlo();
-  }, [activeRoster, selectedTrack, simCount]);
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* 1. 상단 글로벌 대시보드 헤더 */}
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative">
+      
+      {/* ── 🔮 장우님 기획: 안내 가이드 유도형 모달 팝업 렌더링 ── */}
+      {isAgentModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-purple-500/40 p-6 rounded-2xl max-w-sm w-full shadow-2xl text-center border-t-4 border-t-purple-500">
+            <h3 className="text-lg font-black text-white mb-1 flex items-center justify-center gap-1.5">
+              <span>🤖</span> AI 가상 에이전트 브리핑 소집
+            </h3>
+            <p className="text-xs text-slate-400 mb-6">브리핑룸 에이전트로 어떤걸 선택하시겠습니까?</p>
+            
+            <div className="flex flex-col gap-2.5">
+              <button
+                className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 font-bold rounded-xl transition text-slate-100 text-xs shadow-md shadow-purple-500/10"
+                onClick={() => executeSimulationAndAiCombo("madongseon")}
+              >
+                1. 도박사 (마동선 족집게 예측) 🎲
+              </button>
+              <button
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl transition text-slate-100 text-xs shadow-md shadow-blue-500/10"
+                onClick={() => executeSimulationAndAiCombo("sports")}
+              >
+                2. 중계 (스포츠 하이라이트 중계) 🎙️
+              </button>
+              <button
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl transition text-slate-100 text-xs shadow-md shadow-emerald-500/10"
+                onClick={() => executeSimulationAndAiCombo("designer")}
+              >
+                3. 밸런스 (밸런스 디자이너 리포트) 📐
+              </button>
+            </div>
+            <button 
+              className="mt-4 text-[10px] text-slate-500 hover:text-slate-400 underline"
+              onClick={() => setIsAgentModalOpen(false)}
+            >
+              세팅 취소하고 돌아가기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 헤더 */}
       <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur px-8 py-5 flex justify-between items-center sticky top-0 z-50">
         <div className="flex items-center space-x-3">
           <span className="text-3xl animate-pulse">🏁</span>
@@ -671,21 +730,19 @@ export default function SaealsimDashboard() {
             <p className="text-xs text-slate-400 mt-0.5">Monte Carlo Statistics Engine & AI Strategy Suite</p>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
+        <div>
           <span className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${isTournamentCheck ? 'bg-amber-500/10 border-amber-500/30 text-amber-400':'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'}`}>
             {isTournamentCheck ? '🏆 토너먼트 모드 적용' : '🎲 일반 경기 모드 적용'}
           </span>
         </div>
       </header>
 
-      {/* 2. 대시보드 메인 양면 구조 그리드 레이아웃 */}
+      {/* 대시보드 그리드 본체 */}
       <main className="flex-1 max-w-[1700px] w-full mx-auto p-6 lg:p-8 grid grid-cols-1 xl:grid-cols-12 gap-8">
         
         {/* [좌측 컨트롤 보드 패널] */}
         <section className="xl:col-span-5 flex flex-col space-y-6">
-          
-          {/* 하이테크 환경 설정 카드 */}
-          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <span>⚙️</span> 제어 매개변수 커스텀 설정
@@ -708,7 +765,7 @@ export default function SaealsimDashboard() {
             </div>
 
             <div className="mb-5">
-              <label className="block text-xs text-slate-400 mb-2">빠른 다이렉트 매치업 프리셋 조 편성</label>
+              <label className="block text-xs text-slate-400 mb-2">빠른 프리셋 조 편성</label>
               <div className="flex flex-wrap gap-2">
                 {MATCH_PRESETS.map((p, i) => (
                   <button 
@@ -726,32 +783,32 @@ export default function SaealsimDashboard() {
               <select 
                 value={simCount} 
                 onChange={e => setSimCount(Number(e.target.value))} 
-                className="bg-slate-950 border border-slate-800 rounded-lg text-xs py-1.5 px-3 text-slate-300 outline-none focus:border-amber-500 transition"
+                className="bg-slate-950 border border-slate-800 rounded-lg text-xs py-1.5 px-3 text-slate-300 outline-none"
               >
                 <option value={10000}>10,000회 연산 (Fast)</option>
                 <option value={50000}>50,000회 연산 (Normal)</option>
                 <option value={100000}>100,000회 연산 (Precise)</option>
               </select>
+              
+              {/* ── 🔮 팝업 선택창 유도로 로직 결합 교체 완료! ── */}
               <button 
-                onClick={runMonteCarlo} 
+                onClick={handleStartClick} 
                 disabled={isSimulating} 
-                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-black rounded-lg transition shadow-lg shadow-amber-500/10 disabled:opacity-50"
+                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-black rounded-lg transition shadow-lg disabled:opacity-50"
               >
-                {isSimulating ? `연산 가동 중 (${progress}%)` : '🔄 시뮬레이션 엔진 가동'}
+                {isSimulating ? `연산 매칭 중 (${progress}%)` : '🔄 시뮬레이션 엔진 가동'}
               </button>
             </div>
           </div>
 
-          {/* 18명 새알심 전용 대규모 인벤토리 프로필 선택 풀 */}
           <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 flex-1 flex flex-col shadow-xl relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex justify-between items-center">
               <span>🥚 출전 새알심 커스텀 풀 로스터 스펙</span>
               <span className="text-cyan-400 font-mono text-xs font-bold bg-cyan-950/40 border border-cyan-800/30 px-2 py-0.5 rounded-full">{activeRoster.length} / 6 선택됨</span>
             </h2>
-            <p className="text-[11px] text-slate-500 mb-3">최소 3명에서 최대 6명까지 출전 리스트를 선택해 시뮬레이션을 재구성할 수 있습니다.</p>
             
-            <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[420px] pr-1 border border-slate-800/40 p-2 bg-slate-950/30 rounded-xl">
+            <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[460px] pr-1 p-2 bg-slate-950/30 rounded-xl">
               {SAEALSIMS.map(s => {
                 const isSelected = activeRoster.includes(s.id);
                 return (
@@ -764,9 +821,6 @@ export default function SaealsimDashboard() {
                       <span style={{ color: s.color }}>● {s.name}</span>
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${s.tier==='S'?'bg-red-500/10 text-red-400':s.tier==='A'?'bg-orange-500/10 text-orange-400':'bg-slate-800 text-slate-400'}`}>{s.tier}티어</span>
                     </div>
-                    <div className="flex gap-2 text-[9px] text-slate-400 font-medium mt-0.5">
-                      <span>형태: <strong className="text-slate-300">{s.type}</strong></span>
-                    </div>
                     <p className="text-[10px] text-slate-500 leading-tight mt-1 line-clamp-2 h-7">{s.desc}</p>
                   </button>
                 );
@@ -778,7 +832,7 @@ export default function SaealsimDashboard() {
         {/* [우측 통계 분석 및 디스플레이 패널] */}
         <section className="xl:col-span-7 flex flex-col space-y-6">
           
-          {/* 10만 회 몬테카를로 통계 판독 미터 차트 카드 */}
+          {/* 위치 3: 몬테카를로 통계 판독 차트 */}
           <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
@@ -786,9 +840,9 @@ export default function SaealsimDashboard() {
             </h2>
             
             {isSimulating ? (
-              <div className="h-[250px] flex flex-col items-center justify-center text-xs text-slate-400 border border-slate-800/50 rounded-xl bg-slate-950/20">
+              <div className="h-[230px] flex flex-col items-center justify-center text-xs text-slate-400 border border-slate-800/50 rounded-xl bg-slate-950/20">
                 <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3" />
-                <span>대용량 시뮬레이션 루프 트랙 난수 수집 장치 연산 데이터 추출 중...</span>
+                <span>대용량 시뮬레이션 루프 난수 데이터 연산 추출 중...</span>
               </div>
             ) : simResults ? (
               <div className="space-y-4">
@@ -796,7 +850,6 @@ export default function SaealsimDashboard() {
                   <div className="flex-1 text-center border-r border-slate-800">총 루프 시행수: <span className="text-amber-400 font-black">{simResults.totalSims.toLocaleString()}회</span></div>
                   <div className="flex-1 text-center">평균 완주 소요 라운드: <span className="text-indigo-400 font-black">{simResults.avgRounds} R</span></div>
                 </div>
-                
                 <div className="space-y-3.5 border border-slate-800/40 p-4 bg-slate-950/20 rounded-xl">
                   {activeRoster.map((id, i) => {
                     const s = SAEALSIMS.find(p => p.id === id); 
@@ -804,148 +857,119 @@ export default function SaealsimDashboard() {
                     return (
                       <div key={id} className="flex items-center space-x-4 text-xs">
                         <div className="w-16 font-bold text-slate-300 truncate">{s?.name}</div>
-                        <div className="flex-1 bg-slate-950 h-6 rounded-lg relative border border-slate-800/60 overflow-hidden shadow-inner flex items-center">
-                          <div 
-                            className="h-full rounded-r transition-all duration-1000 ease-out shadow-lg" 
-                            style={{ width: `${pct}%`, backgroundColor: s?.color }} 
-                          />
-                          <span className="absolute right-3 font-mono font-black text-xs text-cyan-400">{pct}%</span>
+                        <div className="flex-1 bg-slate-950 h-6 rounded-lg relative border border-slate-800/60 overflow-hidden flex items-center">
+                          <div className="h-full rounded-r transition-all duration-1000 ease-out" style={{ width: `${pct}%`, backgroundColor: s?.color }} />
+                          <span className="absolute right-3 font-mono font-black text-cyan-400">{pct}%</span>
                         </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="h-[230px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
+                좌측에서 엔진 가동 버튼을 선택하면 몬테카를로 난수 연산 집계가 활성화됩니다.
+              </div>
+            )}
           </div>
 
-          {/* ✨ LLM AI 분석 및 전략 브리핑룸 스위처 카드 */}
+          {/* ⭐ [위치 대이동 4] Play-by-Play 단판 하이라이트 주행 디스플레이 (브리핑룸 위로 승격) */}
+          <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
+            <div className="flex justify-between items-center text-xs mb-4">
+              <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🎮</span> Play-by-Play 단판 하이라이트 주행 디스플레이
+              </h2>
+              {visualGame && (
+                <div className="flex items-center space-x-2 bg-slate-950 px-2.5 py-1 border border-slate-800 rounded-lg">
+                  <button 
+                    onClick={() => { setIsPlaying(false); setCurrentRoundIdx(0); }}
+                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold"
+                  >
+                    🔄 처음으로
+                  </button>
+                  <button 
+                    onClick={() => setIsPlaying(!isPlaying)} 
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${isPlaying ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}
+                  >
+                    {isPlaying ? '⏸️ 정지' : '▶️ 재생'}
+                  </button>
+                  <span className="text-slate-500 font-mono text-[10px]">R: {currentRoundIdx}/{visualGame.totalRounds}</span>
+                </div>
+              )}
+            </div>
+            
+            {visualGame && currentBoardState ? (
+              <div className="space-y-3">
+                <div className="overflow-x-auto pb-2 flex space-x-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 scrollbar-thin">
+                  {Array.from({ length: 32 }).map((_, i) => {
+                    const stack = currentBoardState.stacks[i] || [];
+                    const type = TRACKS[selectedTrack].layout[i];
+                    return (
+                      <div key={i} className={`w-12 h-20 border flex flex-col justify-between p-1 text-[8px] rounded-lg shrink-0 ${i === 0 ? 'bg-blue-950/30 border-blue-800/40': i === 31 ? 'bg-emerald-950/30 border-emerald-800/40' : 'bg-slate-900/50 border-slate-800/50'}`}>
+                        <div className="flex justify-between font-mono text-slate-500">
+                          <span>{i}</span>
+                          <span className="text-amber-400 font-black">{type !== 'N' && type}</span>
+                        </div>
+                        <div className="flex flex-col-reverse space-y-reverse space-y-0.5 overflow-y-auto max-h-[42px]">
+                          {stack.map((item, idx) => (
+                            <div key={idx} className="h-3 rounded text-center text-[8px] font-black text-slate-950 truncate flex items-center justify-center" style={{ backgroundColor: item === 'ABE' ? '#f43f5e' : SAEALSIMS.find(p => p.id === activeRoster[item])?.color }}>
+                              {item === 'ABE' ? '👑Abe' : SAEALSIMS.find(p => p.id === activeRoster[item])?.name}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="bg-slate-950 border border-slate-800/60 rounded-xl p-2.5 text-[10px] font-mono text-slate-400 max-h-[70px] overflow-y-auto shadow-inner">
+                  {currentBoardState.log.map((logLine, idx) => (
+                    <div key={idx} className="flex gap-1.5 items-center text-slate-300 py-0.5">
+                      <span className="text-amber-500 text-[8px]">⚡</span>
+                      <span>{logLine}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="h-[120px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
+                시뮬레이션이 발동되면 임의로 추출된 1게임의 박진감 넘치는 라운드별 변동 이력이 연동됩니다.
+              </div>
+            )}
+          </div>
+
+          {/* ⭐ [위치 대이동 5] LLM AI 분석 가상 에이전트 브리핑룸 (최하단 정렬 배치) */}
           <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <span>✨</span> LLM AI 분석 가상 에이전트 브리핑룸
             </h2>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              {[
-                ['commentary', '🔮 마동선 족집게 예측'], 
-                ['live', '🎙️ 스포츠 하이라이트 중계'], 
-                ['patch', '🛠️ 밸런스 디자이너 리포트']
-              ].map(([type, label]) => (
-                // ── 🛡️ [수정 포인트 3] 버튼 비활성화 태그 및 UI 쿨타임 스타일 연결 ──
-                <button 
-                  key={type} 
-                  onClick={() => triggerAiAnalysis(type)} 
-                  disabled={!simResults || aiLoading || isAiAnalyzing || aiCallCount >= 3} 
-                  className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
-                    activeAiTab === type 
-                      ? 'bg-amber-500/10 border-amber-500 text-amber-400 shadow-md'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                  } ${(isAiAnalyzing || aiCallCount >= 3) ? 'opacity-40 cursor-not-allowed border-slate-900 bg-slate-950/80':''}`}
-                >
-                  {isAiAnalyzing && activeAiTab === type ? "🔒 분석 쿨타임 대기" : label}
-                </button>
-              ))}
-            </div>
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 min-h-[160px] text-xs text-slate-300 leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto scrollbar-thin font-mono shadow-inner">
+
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 min-h-[140px] text-xs text-slate-300 leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto font-mono shadow-inner">
               {aiLoading ? (
-                <div className="flex items-center gap-2 text-slate-400 animate-pulse">
-                  <div className="w-2 h-2 bg-amber-500 rounded-full animate-ping" />
-                  <span>Gemini LLM이 시뮬레이션 데이터를 인공지능 기반으로 전술적 해석 및 기획 중입니다...</span>
+                <div className="flex flex-col items-center justify-center py-4 text-center animate-pulse text-slate-400">
+                  <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mb-2" />
+                  <span className="text-yellow-400 font-semibold text-[11px]">{aiStatusMessage}</span>
                 </div>
               ) : aiError ? (
                 <span className="text-red-400">{aiError}</span>
               ) : aiReport ? (
                 <div>
-                  <div className="text-[10px] text-amber-500/60 font-sans mb-1 text-right">🔒 악성 디도스 방어 활성화 (잔여 사용 한도: {3 - aiCallCount}회)</div>
+                  <div className="text-[9px] text-amber-500/60 font-sans mb-1 text-right">
+                    🔒 악성 디도스 방어 활성화 (잔여 사용 한도: {3 - aiCallCount}회)
+                  </div>
                   {aiReport}
                 </div>
               ) : (
-                <span className="text-slate-500">📊 상단의 분석 스위치 버튼을 선택하면 Gemini API가 활성화되어 몬테카를로 통계 분석 맞춤형 브리핑 리포트를 즉시 생성합니다.</span>
+                <span className="text-slate-500">
+                  📊 시뮬레이션 매칭 시 고른 에이전트 모드가 실시간 기동 로직에 결합되어 차트 분석과 동시에 출력됩니다. (현재 기본 대기: 마동선 족집게 예측)
+                </span>
               )}
             </div>
           </div>
+
         </section>
       </main>
-
-      {/* 3. 하단 단판 재생 컨트롤 플레이어 시각화 화면 */}
-      <footer className="border-t border-slate-800 bg-slate-900/40 p-6 backdrop-blur-sm">
-        <div className="max-w-[1700px] mx-auto space-y-4">
-          <div className="flex justify-between items-center text-xs">
-            <div className="flex items-center space-x-2">
-              <span className="text-lg">🎮</span>
-              <h3 className="font-bold text-slate-200 uppercase tracking-wider">Play-by-Play 단판 하이라이트 주행 디스플레이</h3>
-            </div>
-            
-            {visualGame && (
-              <div className="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 border border-slate-800 rounded-xl">
-                <button 
-                  onClick={() => {
-                    setIsPlaying(false);        
-                    setCurrentRoundIdx(0);      
-                  }}
-                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-bold transition border border-slate-700 active:scale-95"
-                >
-                  🔄 처음으로
-                </button>
-
-                <button 
-                  onClick={() => setIsPlaying(!isPlaying)} 
-                  className={`px-3 py-1 rounded text-[11px] font-bold transition text-slate-950 active:scale-95 ${isPlaying ? 'bg-red-400 hover:bg-red-500 text-white' : 'bg-amber-400 hover:bg-amber-300'}`}
-                >
-                  {isPlaying ? '⏸️ 일시정지' : '▶️ 경기 재생'}
-                </button>
-                
-                <span className="text-slate-400 p-1 font-mono text-[11px] tracking-widest font-black">ROUND: {currentRoundIdx} / {visualGame.totalRounds} R</span>
-              </div>
-            )}
-          </div>
-          
-          {visualGame && currentBoardState && (
-            <div className="space-y-4 animate-fadeIn">
-              <div className="overflow-x-auto pb-3 flex space-x-1.5 bg-slate-950/60 p-3 rounded-2xl border border-slate-800 shadow-inner scrollbar-thin">
-                {Array.from({ length: 32 }).map((_, i) => {
-                  const stack = currentBoardState.stacks[i] || [];
-                  const type = TRACKS[selectedTrack].layout[i];
-                  return (
-                    <div 
-                      key={i} 
-                      className={`w-14 h-24 border flex flex-col justify-between p-1.5 text-[9px] rounded-xl transition-all shrink-0 ${i === 0 ? 'bg-blue-950/40 border-blue-800/60': i === 31 ? 'bg-emerald-950/40 border-emerald-800/60' : 'bg-slate-900/80 border-slate-800/80'}`}
-                    >
-                      <div className="flex justify-between font-black text-[9px]">
-                        <span className="text-slate-500 font-mono">{i}</span>
-                        <span className={`px-1 rounded text-[8px] font-black ${type==='B'?'text-amber-400 bg-amber-950/60':type==='R'?'text-red-400 bg-red-950/60':type==='C'?'text-purple-400 bg-purple-950/60':'text-transparent'}`}>
-                          {type !== 'N' && type}
-                        </span>
-                      </div>
-                      
-                      <div className="flex flex-col-reverse space-y-reverse space-y-1 overflow-y-auto max-h-[55px] pr-0.5">
-                        {stack.map((item, idx) => (
-                          <div 
-                            key={idx} 
-                            className="h-3.5 rounded-md text-center text-[9px] font-black text-slate-950 truncate flex items-center justify-center shadow-sm transition-all" 
-                            style={{ backgroundColor: item === 'ABE' ? '#f43f5e' : SAEALSIMS.find(p => p.id === activeRoster[item])?.color }}
-                          >
-                            {item === 'ABE' ? '👑Abe' : SAEALSIMS.find(p => p.id === activeRoster[item])?.name}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] font-medium text-slate-400 max-h-[85px] overflow-y-auto font-mono leading-relaxed shadow-inner">
-                {currentBoardState.log.map((logLine, idx) => (
-                  <div key={idx} className="flex gap-2 items-center text-slate-300 py-0.5 border-b border-slate-900/50 last:border-0">
-                    <span className="text-amber-500 text-[9px]">⚡</span>
-                    <span>{logLine}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </footer>
     </div>
   );
 }
