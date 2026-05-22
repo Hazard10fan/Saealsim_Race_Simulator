@@ -116,6 +116,9 @@ export default function SaealsimDashboard() {
   const [isPlaying, setIsPlaying] = useState(false);
   const playbackTimer = useRef(null);
 
+  // ── 🔮 [장우님 기획] 실시간 1등 추적용 카메라 스크롤 DOM 참조 랜드마크 ──
+  const trackContainerRef = useRef(null);
+
   const [aiReport, setAiReport] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
@@ -651,6 +654,38 @@ export default function SaealsimDashboard() {
     return visualGame.rounds[currentRoundIdx];
   }, [visualGame, currentRoundIdx]);
 
+  // ── 🔮 [수정 포인트 2] 시시각각 변하는 실시간 1등 추적 및 부드러운 자동 스크롤 연동부 ──
+  useEffect(() => {
+    if (!currentBoardState || !trackContainerRef.current) return;
+
+    // 현재 라운드에서 가장 멀리 나간(인덱스가 가장 큰) 1등 칸 찾기
+    let leaderCellIdx = 0;
+    for (let c = 31; c >= 0; c--) {
+      const stack = currentBoardState.stacks[c] || [];
+      // 아브대왕 제외 진짜 새알심이 존재하는 가장 높은 칸 인덱스를 선점
+      if (stack.filter(x => x !== 'ABE').length > 0) {
+        leaderCellIdx = c;
+        break;
+      }
+    }
+
+    // 찾아낸 1등 타일 DOM 엘리먼트 타겟팅 추출
+    const container = trackContainerRef.current;
+    const targetTile = container.children[leaderCellIdx];
+    
+    if (targetTile) {
+      // 1등 칸이 가로 가이드라인 중심 혹은 시야에 오도록 스무스 스크롤 작동
+      const containerWidth = container.clientWidth;
+      const tileOffsetLeft = targetTile.offsetLeft;
+      const tileWidth = targetTile.clientWidth;
+
+      container.scrollTo({
+        left: tileOffsetLeft - (containerWidth / 2) + (tileWidth / 2),
+        behavior: 'smooth' // 1등을 따라 카메라가 영화처럼 부드럽게 흐르도록 연출
+      });
+    }
+  }, [currentRoundIdx, currentBoardState]);
+
   useEffect(() => {
     if (isPlaying && visualGame) {
       playbackTimer.current = setInterval(() => {
@@ -862,12 +897,13 @@ export default function SaealsimDashboard() {
             )}
           </div>
 
-          {/* ⭐ [위치 대이동 4] Play-by-Play 단판 하이라이트 주행 디스플레이 (트랙 시각화 완전 커스텀 개편) */}
+          {/* ⭐ [위치 4] Play-by-Play 단판 하이라이트 주행 디스플레이 (실시간 1등 자동 카메라 스크롤 추적 탑재!) */}
           <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
             <div className="flex justify-between items-center text-xs mb-4">
               <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🎮</span> Play-by-Play 단판 하이라이트 주행 디스플레이
+                <span>🎮</span> Play-by-Play 단판 하이라이트 주행 디스플레이 
+                <span className="text-[10px] text-cyan-400 font-mono bg-cyan-950/50 border border-cyan-800/40 px-1.5 py-0.5 rounded animate-pulse">🎥 1등 카메라 락 온</span>
               </h2>
               {visualGame && (
                 <div className="flex items-center space-x-2 bg-slate-950 px-2.5 py-1 border border-slate-800 rounded-lg">
@@ -890,13 +926,15 @@ export default function SaealsimDashboard() {
             
             {visualGame && currentBoardState ? (
               <div className="space-y-3">
-                {/* ── 🔮 [리팩토링] 하이테크 스타일 이모지 및 그라데이션 트랙 매핑 가동 ── */}
-                <div className="overflow-x-auto pb-2 flex space-x-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 scrollbar-thin">
+                {/* ── 🔮 [리팩토링] trackContainerRef를 심어 가로 스크롤을 자바스크립트로 강제 통제합니다 ── */}
+                <div 
+                  ref={trackContainerRef}
+                  className="overflow-x-auto pb-2 flex space-x-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 scrollbar-thin scroll-smooth"
+                >
                   {Array.from({ length: 32 }).map((_, i) => {
                     const stack = currentBoardState.stacks[i] || [];
                     const type = TRACKS[selectedTrack].layout[i];
                     
-                    // 조건부 스타일/아이콘 주입 자동화
                     let tileStyle = "bg-slate-900/50 border-slate-800/60";
                     let tileIcon = "";
                     let tileName = "";
@@ -926,20 +964,17 @@ export default function SaealsimDashboard() {
                         key={i} 
                         className={`w-12 h-20 border flex flex-col justify-between p-1 text-[8px] rounded-lg shrink-0 transition-all ${tileStyle}`}
                       >
-                        {/* 상단 인덱스 및 상태 아이콘 스트림 */}
                         <div className="flex justify-between font-mono text-slate-500 font-bold">
                           <span>{String(i).padStart(2, '0')}</span>
                           <span className="text-[8px] tracking-tighter">{tileIcon}</span>
                         </div>
 
-                        {/* 중간 장치 가이드 명칭 */}
                         {tileName && (
                           <div className="text-[7px] font-black text-center opacity-60 tracking-tighter -mt-1 font-sans">
                             {tileName}
                           </div>
                         )}
 
-                        {/* 하단 새알심 물리적 스택 기믹 조작부 */}
                         <div className="flex flex-col-reverse space-y-reverse space-y-0.5 overflow-y-auto max-h-[38px] pr-0.5">
                           {stack.map((item, idx) => (
                             <div 
