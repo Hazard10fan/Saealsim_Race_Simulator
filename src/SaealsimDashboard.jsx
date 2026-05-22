@@ -400,7 +400,7 @@ export default function SaealsimDashboard() {
       return;
     }
     if (aiCallCount >= 3) {
-      alert("⚠️ 과도한 AI 트래픽이 감지되었습니다. 원활한 공용 서버 운영을 위해 잠시 후 다시 시도해 주세요!");
+      alert("⚠️ 과도한 AI 트래픽이 감지되었습니다. 잠시 후 다시 시도해 주세요!");
       return;
     }
     setIsAgentModalOpen(true);
@@ -756,12 +756,139 @@ export default function SaealsimDashboard() {
         </div>
       </header>
 
-      {/* ── 🔮 3단 샌드위치 하이테크 레이아웃 구조 전면 전개 ── */}
+      {/* ── 🔮 [장우님 대전환 기획] 입력/출력 상하 대규모 분리형 아키텍처 그리드 개막 ── */}
       <main className="flex-1 max-w-[1700px] w-full mx-auto p-6 lg:p-8 space-y-6">
         
-        {/* [1단: 세팅 패널 & Recharts 막대 그래프 나란히 배치] */}
+        {/* ────────── [1단: LIVE STADIUM - 시각화/출력창 상단 고정 배치] ────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-          {/* 제어 매개변수 설정 */}
+          
+          {/* 위치 A: 몬테카를로 통계 판독 차트 */}
+          <section className="xl:col-span-5 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
+            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+              <span>📊</span> 10,000회 이상 무작위 알고리즘 Monte Carlo 통계 판독 차트
+            </h2>
+            
+            {isSimulating ? (
+              <div className="h-[200px] flex flex-col items-center justify-center text-xs text-slate-400 border border-slate-800/50 rounded-xl bg-slate-950/20">
+                <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3" />
+                <span>대용량 시뮬레이션 루프 난수 데이터 연산 추출 중...</span>
+              </div>
+            ) : simResults ? (
+              <div className="space-y-4">
+                <div className="flex space-x-4 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 text-[11px] font-semibold">
+                  <div className="flex-1 text-center border-r border-slate-800">총 시행: <span className="text-amber-400 font-black">{simResults.totalSims.toLocaleString()}회</span></div>
+                  <div className="flex-1 text-center">평균 완주: <span className="text-indigo-400 font-black">{simResults.avgRounds} R</span></div>
+                </div>
+                <div className="space-y-2 border border-slate-800/40 p-3 bg-slate-950/20 rounded-xl max-h-[125px] overflow-y-auto">
+                  {activeRoster.map((id, i) => {
+                    const s = SAEALSIMS.find(p => p.id === id); 
+                    const pct = simResults.winPercent[i] || "0.0";
+                    return (
+                      <div key={id} className="flex items-center space-x-3 text-xs py-0.5">
+                        <div className="w-14 font-bold text-slate-300 truncate text-[11px]">{s?.name}</div>
+                        <div className="flex-1 bg-slate-950 h-5 rounded-md relative border border-slate-800/60 overflow-hidden flex items-center">
+                          <div className="h-full rounded-r transition-all duration-1000 ease-out" style={{ width: `${pct}%`, backgroundColor: s?.color }} />
+                          <span className="absolute right-2 font-mono font-black text-[11px] text-cyan-400">{pct}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
+                하단의 컨트롤 타워에서 매치업 세팅 후 가동하면 실시간 난수 통계 미터가 연동됩니다.
+              </div>
+            )}
+          </section>
+
+          {/* 위치 B: Play-by-Play 단판 하이라이트 주행 디스플레이 */}
+          <section className="xl:col-span-7 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
+            <div className="flex justify-between items-center text-xs mb-4">
+              <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🎮</span> Play-by-Play 단판 하이라이트 주행 디스플레이 
+                <span className="text-[10px] text-cyan-400 font-mono bg-cyan-950/50 border border-cyan-800/40 px-1.5 py-0.5 rounded animate-pulse">🎥 1등 카메라 자동 추적</span>
+              </h2>
+              {visualGame && (
+                <div className="flex items-center space-x-2 bg-slate-950 px-2 py-0.5 border border-slate-800 rounded-lg">
+                  <button 
+                    onClick={() => { setIsPlaying(false); setCurrentRoundIdx(0); }}
+                    className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[9px] font-bold"
+                  >
+                    🔄 리셋
+                  </button>
+                  <button 
+                    onClick={() => setIsPlaying(!isPlaying)} 
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isPlaying ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}
+                  >
+                    {isPlaying ? '⏸️ 정지' : '▶️ 재생'}
+                  </button>
+                  <span className="text-slate-500 font-mono text-[9px]">R: {currentRoundIdx}/{visualGame.totalRounds}</span>
+                </div>
+              )}
+            </div>
+            
+            {visualGame && currentBoardState ? (
+              <div className="space-y-3">
+                <div 
+                  ref={trackContainerRef}
+                  className="overflow-x-auto pb-2 flex space-x-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 scrollbar-thin scroll-smooth"
+                >
+                  {Array.from({ length: 32 }).map((_, i) => {
+                    const stack = currentBoardState.stacks[i] || [];
+                    const type = TRACKS[selectedTrack].layout[i];
+                    
+                    let tileStyle = "bg-slate-900/50 border-slate-800/60";
+                    let tileIcon = "";
+                    let tileName = "";
+
+                    if (i === 0) { tileStyle = "bg-blue-950/40 border-blue-600/50 text-blue-400"; tileName = "START"; }
+                    else if (i === 31) { tileStyle = "bg-emerald-950/40 border-emerald-600/50 text-emerald-400"; tileName = "GOAL"; }
+                    else if (type === 'B') { tileStyle = "bg-emerald-900/20 border-emerald-500/30 text-emerald-400"; tileIcon = "▶▶"; tileName = "BOOST"; }
+                    else if (type === 'R') { tileStyle = "bg-rose-900/20 border-rose-500/30 text-rose-400"; tileIcon = "◀◀"; tileName = "REVERSE"; }
+                    else if (type === 'C') { tileStyle = "bg-purple-900/20 border-purple-500/30 text-purple-400"; tileIcon = "🌀"; tileName = "CRACK"; }
+
+                    return (
+                      <div key={i} className={`w-11 h-20 border flex flex-col justify-between p-1 text-[8px] rounded-lg shrink-0 transition-all ${tileStyle}`}>
+                        <div className="flex justify-between font-mono text-slate-500 font-bold">
+                          <span>{String(i).padStart(2, '0')}</span>
+                          <span className="text-[7.5px] tracking-tighter">{tileIcon}</span>
+                        </div>
+                        {tileName && <div className="text-[7px] font-black text-center opacity-65 tracking-tighter -mt-1 font-sans">{tileName}</div>}
+                        <div className="flex flex-col-reverse space-y-reverse space-y-0.5 overflow-y-auto max-h-[38px] pr-0.5">
+                          {stack.map((item, idx) => (
+                            <div key={idx} className="h-3 rounded text-center text-[7.5px] font-black text-slate-950 truncate flex items-center justify-center shadow-sm" style={{ backgroundColor: item === 'ABE' ? '#f43f5e' : SAEALSIMS.find(p => p.id === activeRoster[item])?.color }}>
+                              {item === 'ABE' ? '👑Abe' : SAEALSIMS.find(p => p.id === activeRoster[item])?.name}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="bg-slate-950 border border-slate-800/60 rounded-xl p-2 text-[9px] font-mono text-slate-400 max-h-[50px] overflow-y-auto shadow-inner">
+                  {currentBoardState.log.map((logLine, idx) => (
+                    <div key={idx} className="flex gap-1 items-center text-slate-300 py-0.5">
+                      <span className="text-amber-500 text-[8px]">⚡</span>
+                      <span>{logLine}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
+                시뮬레이션 가동 즉시 임의로 가공된 단판 하이라이트 박레이싱이 1등 포커싱 무빙 앵글로 상단에 중계됩니다!
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* ────────── [2단: CONTROL CENTER - 입력/조작영역 하단 대통합 배치] ────────── */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          
+          {/* 통합 입력 패널 1: 제어 매개변수 설정 */}
           <section className="xl:col-span-5 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
@@ -775,7 +902,7 @@ export default function SaealsimDashboard() {
                   <button 
                     key={k} 
                     onClick={() => { setSelectedTrack(k); setIsTournamentCheck(k==='tournament'); setSimResults(null); }} 
-                    className={`p-3 rounded-xl border text-left transition-all ${selectedTrack === k ? 'border-amber-500 bg-amber-500/5 text-amber-300 shadow-md shadow-amber-500/5':'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700'}`}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${selectedTrack === k ? 'border-amber-500 bg-amber-500/5 text-amber-300 shadow-md shadow-amber-500/5':'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700'}`}
                   >
                     <div className="font-bold text-xs">{TRACKS[k].name}</div>
                     <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{TRACKS[k].desc}</div>
@@ -784,14 +911,14 @@ export default function SaealsimDashboard() {
               </div>
             </div>
 
-            <div className="mb-5">
-              <label className="block text-xs text-slate-400 mb-2">빠른 프리셋 조 편성</label>
-              <div className="flex flex-wrap gap-2">
+            <div className="mb-4">
+              <label className="block text-xs text-slate-400 mb-1.5">빠른 프리셋 조 편성</label>
+              <div className="flex flex-wrap gap-1.5">
                 {MATCH_PRESETS.map((p, i) => (
                   <button 
                     key={i} 
                     onClick={() => loadPreset(p)} 
-                    className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 hover:border-slate-700 hover:bg-slate-800/50 rounded-lg text-xs font-medium text-slate-300 transition"
+                    className="px-2 py-1 bg-slate-950 border border-slate-800 hover:border-slate-700 hover:bg-slate-800/50 rounded-lg text-[10px] font-medium text-slate-300 transition"
                   >
                     {p.name}
                   </button>
@@ -799,237 +926,85 @@ export default function SaealsimDashboard() {
               </div>
             </div>
 
-            <div className="flex justify-between items-center pt-4 border-t border-slate-800/60">
+            <div className="flex justify-between items-center pt-3 border-t border-slate-800/60">
               <select 
                 value={simCount} 
                 onChange={e => setSimCount(Number(e.target.value))} 
-                className="bg-slate-950 border border-slate-800 rounded-lg text-xs py-1.5 px-3 text-slate-300 outline-none"
+                className="bg-slate-950 border border-slate-800 rounded-lg text-xs py-1.5 px-2 text-slate-300 outline-none"
               >
-                <option value={10000}>10,000회 연산 (Fast)</option>
-                <option value={50000}>50,000회 연산 (Normal)</option>
-                <option value={100000}>100,000회 연산 (Precise)</option>
+                <option value={10000}>10,000회 (Fast)</option>
+                <option value={50000}>50,000회 (Normal)</option>
+                <option value={100000}>100,000회 (Precise)</option>
               </select>
               
               <button 
                 onClick={handleStartClick} 
                 disabled={isSimulating} 
-                className="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-black rounded-lg transition shadow-lg disabled:opacity-50"
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-black rounded-lg transition shadow-lg disabled:opacity-50"
               >
-                {isSimulating ? `연산 매칭 중 (${progress}%)` : '🔄 시뮬레이션 엔진 가동'}
+                {isSimulating ? `연산 중 (${progress}%)` : '🔄 시뮬레이션 가동'}
               </button>
             </div>
           </section>
 
-          {/* 몬테카를로 통계 차트 */}
+          {/* 통합 입력 패널 2: 출전 새알심 풀 로스터 스펙 인벤토리 */}
           <section className="xl:col-span-7 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
-            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
-            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-              <span>📊</span> 10,000회 이상 무작위 알고리즘 Monte Carlo 통계 판독 차트
-            </h2>
-            
-            {isSimulating ? (
-              <div className="h-[230px] flex flex-col items-center justify-center text-xs text-slate-400 border border-slate-800/50 rounded-xl bg-slate-950/20">
-                <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-3" />
-                <span>대용량 시뮬레이션 루프 난수 데이터 연산 추출 중...</span>
-              </div>
-            ) : simResults ? (
-              <div className="space-y-4">
-                <div className="flex space-x-4 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs font-semibold">
-                  <div className="flex-1 text-center border-r border-slate-800">총 루프 시행수: <span className="text-amber-400 font-black">{simResults.totalSims.toLocaleString()}회</span></div>
-                  <div className="flex-1 text-center">평균 완주 소요 라운드: <span className="text-indigo-400 font-black">{simResults.avgRounds} R</span></div>
-                </div>
-                <div className="space-y-3.5 border border-slate-800/40 p-4 bg-slate-950/20 rounded-xl">
-                  {activeRoster.map((id, i) => {
-                    const s = SAEALSIMS.find(p => p.id === id); 
-                    const pct = simResults.winPercent[i] || "0.0";
-                    return (
-                      <div key={id} className="flex items-center space-x-4 text-xs">
-                        <div className="w-16 font-bold text-slate-300 truncate">{s?.name}</div>
-                        <div className="flex-1 bg-slate-950 h-6 rounded-lg relative border border-slate-800/60 overflow-hidden flex items-center">
-                          <div className="h-full rounded-r transition-all duration-1000 ease-out" style={{ width: `${pct}%`, backgroundColor: s?.color }} />
-                          <span className="absolute right-3 font-mono font-black text-cyan-400">{pct}%</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="h-[230px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
-                좌측에서 엔진 가동 버튼을 선택하면 몬테카를로 난수 연산 집계가 활성화됩니다.
-              </div>
-            )}
-          </section>
-        </div>
-
-        {/* ⭐ [2단: 독립 전광판 승격!] Play-by-Play 단판 하이라이트 주행 디스플레이 (Full Width 전체 개방) */}
-        <section className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
-          <div className="flex justify-between items-center text-xs mb-4">
-            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <span>🎮</span> Play-by-Play 단판 하이라이트 주행 디스플레이 
-              <span className="text-[10px] text-cyan-400 font-mono bg-cyan-950/50 border border-cyan-800/40 px-1.5 py-0.5 rounded animate-pulse">🎥 1등 카메라 자동 추적 락온</span>
-            </h2>
-            {visualGame && (
-              <div className="flex items-center space-x-2 bg-slate-950 px-2.5 py-1 border border-slate-800 rounded-lg">
-                <button 
-                  onClick={() => { setIsPlaying(false); setCurrentRoundIdx(0); }}
-                  className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold"
-                >
-                  🔄 처음으로
-                </button>
-                <button 
-                  onClick={() => setIsPlaying(!isPlaying)} 
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${isPlaying ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}
-                >
-                  {isPlaying ? '⏸️ 정지' : '▶️ 재생'}
-                </button>
-                <span className="text-slate-500 font-mono text-[10px]">R: {currentRoundIdx}/{visualGame.totalRounds}</span>
-              </div>
-            )}
-          </div>
-          
-          {visualGame && currentBoardState ? (
-            <div className="space-y-3">
-              <div 
-                ref={trackContainerRef}
-                className="overflow-x-auto pb-2 flex space-x-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 scrollbar-thin scroll-smooth"
-              >
-                {Array.from({ length: 32 }).map((_, i) => {
-                  const stack = currentBoardState.stacks[i] || [];
-                  const type = TRACKS[selectedTrack].layout[i];
-                  
-                  let tileStyle = "bg-slate-900/50 border-slate-800/60";
-                  let tileIcon = "";
-                  let tileName = "";
-
-                  if (i === 0) {
-                    tileStyle = "bg-blue-950/40 border-blue-600/50 shadow-inner text-blue-400";
-                    tileName = "START";
-                  } else if (i === 31) {
-                    tileStyle = "bg-emerald-950/40 border-emerald-600/50 shadow-inner text-emerald-400";
-                    tileName = "GOAL";
-                  } else if (type === 'B') {
-                    tileStyle = "bg-emerald-900/20 border-emerald-500/30 text-emerald-400 font-black";
-                    tileIcon = "▶▶";
-                    tileName = "BOOST";
-                  } else if (type === 'R') {
-                    tileStyle = "bg-rose-900/20 border-rose-500/30 text-rose-400 font-black";
-                    tileIcon = "◀◀";
-                    tileName = "REVERSE";
-                  } else if (type === 'C') {
-                    tileStyle = "bg-purple-900/20 border-purple-500/30 text-purple-400 font-black";
-                    tileIcon = "🌀";
-                    tileName = "CRACK";
-                  }
-
-                  return (
-                    <div 
-                      key={i} 
-                      className={`w-12 h-20 border flex flex-col justify-between p-1 text-[8px] rounded-lg shrink-0 transition-all ${tileStyle}`}
-                    >
-                      <div className="flex justify-between font-mono text-slate-500 font-bold">
-                        <span>{String(i).padStart(2, '0')}</span>
-                        <span className="text-[8px] tracking-tighter">{tileIcon}</span>
-                      </div>
-
-                      {tileName && (
-                        <div className="text-[7px] font-black text-center opacity-60 tracking-tighter -mt-1 font-sans">
-                          {tileName}
-                        </div>
-                      )}
-
-                      <div className="flex flex-col-reverse space-y-reverse space-y-0.5 overflow-y-auto max-h-[38px] pr-0.5">
-                        {stack.map((item, idx) => (
-                          <div 
-                            key={idx} 
-                            className="h-3 rounded text-center text-[7.5px] font-black text-slate-950 truncate flex items-center justify-center shadow-sm" 
-                            style={{ backgroundColor: item === 'ABE' ? '#f43f5e' : SAEALSIMS.find(p => p.id === activeRoster[item])?.color }}
-                          >
-                            {item === 'ABE' ? '👑Abe' : SAEALSIMS.find(p => p.id === activeRoster[item])?.name}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="bg-slate-950 border border-slate-800/60 rounded-xl p-2.5 text-[10px] font-mono text-slate-400 max-h-[70px] overflow-y-auto shadow-inner">
-                {currentBoardState.log.map((logLine, idx) => (
-                  <div key={idx} className="flex gap-1.5 items-center text-slate-300 py-0.5">
-                    <span className="text-amber-500 text-[8px]">⚡</span>
-                    <span>{logLine}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="h-[120px] flex items-center justify-center text-xs text-slate-500 border border-slate-800/40 rounded-xl bg-slate-950/10">
-              시뮬레이션이 가동되면 이곳에 임의로 추출된 1게임의 박진감 넘치는 실시간 주행 레이스가 곧바로 펼쳐집니다!
-            </div>
-          )}
-        </section>
-
-        {/* [3단: 하단 인벤토리 로스터 풀 & AI 분석 브리핑룸 정렬] */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-          {/* 출전 새알심 풀 로스터 */}
-          <section className="xl:col-span-5 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500" />
             <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex justify-between items-center">
               <span>🥚 출전 새알심 커스텀 풀 로스터 스펙</span>
               <span className="text-cyan-400 font-mono text-xs font-bold bg-cyan-950/40 border border-cyan-800/30 px-2 py-0.5 rounded-full">{activeRoster.length} / 6 선택됨</span>
             </h2>
             
-            <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[220px] pr-1 p-2 bg-slate-950/30 rounded-xl">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 overflow-y-auto max-h-[175px] pr-1 p-2 bg-slate-950/30 rounded-xl">
               {SAEALSIMS.map(s => {
                 const isSelected = activeRoster.includes(s.id);
                 return (
                   <button 
                     key={s.id} 
                     onClick={() => toggleSaealsim(s.id)} 
-                    className={`p-2.5 rounded-xl border text-left transition-all ${isSelected ? 'border-amber-500 bg-amber-500/10 shadow-md':'border-slate-800/60 bg-slate-950/40 hover:border-slate-700'}`}
+                    className={`p-1.5 rounded-xl border text-left transition-all ${isSelected ? 'border-amber-500 bg-amber-500/10 shadow-md':'border-slate-800/60 bg-slate-950/40 hover:border-slate-700'}`}
                   >
-                    <div className="flex justify-between items-center font-bold text-xs">
-                      <span style={{ color: s.color }}>● {s.name}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${s.tier==='S'?'bg-red-500/10 text-red-400':s.tier==='A'?'bg-orange-500/10 text-orange-400':'bg-slate-800 text-slate-400'}`}>{s.tier}티어</span>
+                    <div className="flex justify-between items-center font-bold text-[11px]">
+                      <span style={{ color: s.color }} className="truncate">● {s.name}</span>
+                      <span className="text-[8px] text-slate-500 shrink-0">{s.tier}티어</span>
                     </div>
-                    <p className="text-[10px] text-slate-500 leading-tight mt-1 line-clamp-2 h-7">{s.desc}</p>
+                    <p className="text-[9px] text-slate-500 leading-tight mt-0.5 line-clamp-2 h-6">{s.desc}</p>
                   </button>
                 );
               })}
             </div>
           </section>
-
-          {/* AI 브리핑룸 */}
-          <section className="xl:col-span-7 bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
-            <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
-            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-              <span>✨</span> LLM AI 분석 가상 에이전트 브리핑룸
-            </h2>
-
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 min-h-[140px] text-xs text-slate-300 leading-relaxed whitespace-pre-wrap max-h-[220px] overflow-y-auto font-mono shadow-inner">
-              {aiLoading ? (
-                <div className="flex flex-col items-center justify-center py-4 text-center animate-pulse text-slate-400">
-                  <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mb-2" />
-                  <span className="text-yellow-400 font-semibold text-[11px]">{aiStatusMessage}</span>
-                </div>
-              ) : aiError ? (
-                <span className="text-red-400">{aiError}</span>
-              ) : aiReport ? (
-                <div>
-                  <div className="text-[9px] text-amber-500/60 font-sans mb-1 text-right">
-                    🔒 악성 디도스 방어 활성화 (잔여 사용 한도: {3 - aiCallCount}회)
-                  </div>
-                  {aiReport}
-                </div>
-              ) : (
-                <span className="text-slate-500">
-                  📊 시뮬레이션 매칭 시 고른 에이전트 모드가 실시간 기동 로직에 결합되어 차트 분석과 동시에 출력됩니다. (현재 기본 대기: 마동선 족집게 예측)
-                </span>
-              )}
-            </div>
-          </section>
         </div>
+
+        {/* ────────── [3단: LLM AI STRATEGY SYSTEM - 최하단 패칭 리포트 안착] ────────── */}
+        <section className="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl relative">
+          <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
+          <h2 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+            <span>✨</span> LLM AI 분석 가상 에이전트 브리핑룸
+          </h2>
+
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 min-h-[120px] text-xs text-slate-300 leading-relaxed whitespace-pre-wrap max-h-[180px] overflow-y-auto font-mono shadow-inner">
+            {aiLoading ? (
+              <div className="flex flex-col items-center justify-center py-2 text-center animate-pulse text-slate-400">
+                <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mb-2" />
+                <span className="text-yellow-400 font-semibold text-[11px]">{aiStatusMessage}</span>
+              </div>
+            ) : aiError ? (
+              <span className="text-red-400">{aiError}</span>
+            ) : aiReport ? (
+              <div>
+                <div className="text-[9px] text-amber-500/60 font-sans mb-1 text-right">
+                  🔒 악성 디도스 방어 활성화 (잔여 사용 한도: {3 - aiCallCount}회)
+                </div>
+                {aiReport}
+              </div>
+            ) : (
+              <span className="text-slate-500">
+                📊 하단 컨트롤 창에서 전략 매개변수 및 캐릭터 세팅을 마친 뒤 가동하면 상단 트랙 레이싱 완주와 동시에 에이전트 브리핑이 이곳에 실시간 바인딩됩니다.
+              </span>
+            )}
+          </div>
+        </section>
 
       </main>
     </div>
